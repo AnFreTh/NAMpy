@@ -1,12 +1,12 @@
 TODO:
 
 ### Models to implement:
-    - TabTransformer
+    - TabTransformer https://arxiv.org/pdf/2012.06678.pdf     https://keras.io/examples/structured_data/tabtransformer/
         - TabTransformerLSS
-    - TabNet
+    - TabNet https://arxiv.org/abs/1908.07442     https://github.com/jeyabbalas/tabnet
         - TabNetLSS
-    - FT-Transformer
-        FT-TransformerLSS
+    - FT-Transformer  https://arxiv.org/pdf/2106.11959.pdf  https://github.com/aruberts/TabTransformerTF
+        - FT-TransformerLSS
     - QNAM
     - BNAM
     - BlackBox-Models for baselines
