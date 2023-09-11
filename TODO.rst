@@ -20,6 +20,7 @@ TODO:
     - RandomFourierFeatures
 
 ### Interpretability
+    - Orthogonalization
     - Approx Fisher for SNAM
     - Pseudo Significance - LOO Distribution Shift
 
