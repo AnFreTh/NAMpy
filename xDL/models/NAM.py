@@ -3,7 +3,7 @@ from keras.layers import Add
 import numpy as np
 import matplotlib.pyplot as plt
 from xDL.utils.data_utils import *
-from xDL.backend.basemodel import BaseModel
+from xDL.backend.basemodel import AdditiveBaseModel
 from xDL.backend.helper_nets.featurenets import *
 from xDL.backend.helper_nets.layers import *
 from xDL.utils.graphing import *
@@ -14,7 +14,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-class NAM(BaseModel):
+class NAM(AdditiveBaseModel):
     """
     NAMLSS Model Class for fitting a Neural Additive Model for Location Scale and Shape
     """
@@ -23,13 +23,13 @@ class NAM(BaseModel):
         self,
         formula,
         data,
-        activation="relu",
-        dropout=0.01,
         feature_dropout=0.001,
         val_split=0.2,
+        batch_size=1024,
         val_data=None,
         output_activation="linear",
         classification=False,
+        binning_task="regression",
     ):
         """
         Initialize the NAM model.
@@ -73,19 +73,22 @@ class NAM(BaseModel):
             hidden_layer_sizes (list): List of hidden layer sizes.
         """
 
-        super(NAM, self).__init__(formula, data, activation, dropout, feature_dropout)
+        super(NAM, self).__init__(
+            formula=formula,
+            data=data,
+            feature_dropout=feature_dropout,
+            val_data=val_data,
+            val_split=val_split,
+            batch_size=batch_size,
+            binning_task=binning_task,
+        )
 
         if not isinstance(formula, str):
-            raise ValueError(
-                "The formula must be a string. See patsy for documentation"
-            )
+            raise ValueError("The formula must be a string.")
 
         self.formula = formula
-        self.data = data
         self.val_data = val_data
         self.val_split = val_split
-        self.activation = activation
-        self.dropout = dropout
         self.feature_dropout = feature_dropout
         self.classification = classification
 
@@ -94,31 +97,16 @@ class NAM(BaseModel):
         else:
             num_classes = 1
 
-        self.feature_nets = [
-            eval(self.input_dict[key]["Network"])(
-                inputs=self.input_dict[key]["Input"][0],
-                sizes=self.input_dict[key]["Sizes"],
-                name=key,
-                activation=self.activation,
-                dropout=self.dropout,
-                output_dimension=num_classes,
-            )
-            for idx, key in enumerate(self.input_dict)
-            if len(self.input_dict[key]["Input"]) == 1
-        ]
-
-        for idx, key in enumerate(self.input_dict):
-            if len(self.input_dict[key]["Input"]) >= 2:
-                self.feature_nets.append(
-                    Interaction_MLP(
-                        inputs=self.input_dict[key]["Input"],
-                        sizes=self.input_dict[key]["Sizes"],
-                        activation=self.activation,
-                        dropout=self.dropout,
-                        output_dimension=num_classes,
-                        name=self.feature_names[idx],
-                    )
+        self.feature_nets = []
+        for _, key in enumerate(self.input_dict):
+            self.feature_nets.append(
+                eval(self.input_dict[key]["Network"])(
+                    inputs=self.input_dict[key]["Input"],
+                    param_dict=self.input_dict[key]["hyperparams"],
+                    name=key,
+                    output_dimension=num_classes,
                 )
+            )
 
         self.output_layer = IdentityLayer(activation=output_activation)
         self.FeatureDropoutLayer = tf.keras.layers.Dropout(self.feature_dropout)
@@ -294,7 +282,7 @@ class NAM(BaseModel):
                 # Scatter plot of training data
                 ax.scatter(
                     self.data[self.feature_nets[idx].name],
-                    self.data[self.y] - np.mean(self.data[self.y]),
+                    self.data[self.y],  # - np.mean(self.data[self.y]),
                     s=2,
                     alpha=0.5,
                     color="cornflowerblue",
@@ -304,9 +292,10 @@ class NAM(BaseModel):
                     ax.scatter(
                         self.plotting_data[self.feature_nets[idx].name],
                         preds[idx].squeeze(),
-                        linewidth=2,
                         color="crimson",
+                        marker="x",
                     )
+
                 else:
                     ax.plot(
                         self.plotting_data[self.feature_nets[idx].name],

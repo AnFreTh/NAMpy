@@ -11,9 +11,10 @@ from xDL.utils.helper_funcs import *
 tfd = tfp.distributions
 import numpy as np
 
-from xDL.backend.basemodel import BaseModel
+from xDL.backend.basemodel import AdditiveBaseModel
 from xDL.utils.data_utils import *
 from xDL.backend.families import *
+
 
 import warnings
 
@@ -21,17 +22,17 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-class NAMLSS(BaseModel):
+class NAMLSS(AdditiveBaseModel):
     def __init__(
         self,
         formula,
         data,
         family,
-        activation="relu",
-        dropout=0.01,
         feature_dropout=0.01,
         val_split=0.2,
         val_data=None,
+        batch_size=1024,
+        binning_task="regression",
     ):
         """
         Initialize the NAMLSS model.
@@ -74,13 +75,17 @@ class NAMLSS(BaseModel):
         """
 
         super(NAMLSS, self).__init__(
-            formula, data, activation, dropout, feature_dropout
+            formula=formula,
+            data=data,
+            feature_dropout=feature_dropout,
+            val_data=val_data,
+            val_split=val_split,
+            batch_size=batch_size,
+            binning_task=binning_task,
         )
 
         if not isinstance(formula, str):
-            raise ValueError(
-                "The formula must be a string. See patsy for documentation"
-            )
+            raise ValueError("The formula must be a string.")
 
         if family not in [
             "Normal",
@@ -95,7 +100,6 @@ class NAMLSS(BaseModel):
             )
 
         self.formula = formula
-        self.data = data
 
         if family == "Normal":
             self.family = Normal()
@@ -114,34 +118,18 @@ class NAMLSS(BaseModel):
                 "The family must be in ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', 'Gamma']. If you wish further distributions to be implemented please raise an Issue"
             )
 
-        self.activation = activation
-        self.dropout = dropout
         self.feature_dropout = feature_dropout
 
-        self.feature_nets = [
-            eval(self.input_dict[key]["Network"])(
-                inputs=self.input_dict[key]["Input"][0],
-                sizes=self.input_dict[key]["Sizes"],
-                name=self.input_dict[key]["Input"][0].name,
-                activation=self.activation,
-                dropout=self.dropout,
-                output_dimension=self.family.dimension,
-            )
-            for idx, key in enumerate(self.input_dict)
-            if len(self.input_dict[key]["Input"]) == 1
-        ]
-        for idx, key in enumerate(self.input_dict):
-            if len(self.input_dict[key]["Input"]) >= 2:
-                self.feature_nets.append(
-                    Interaction_MLP(
-                        inputs=self.input_dict[key]["Input"],
-                        sizes=self.input_dict[key]["Sizes"],
-                        activation=self.activation,
-                        dropout=self.dropout,
-                        output_dimension=self.family.dimension,
-                        name=self.input_dict[key]["Input"][0].name,
-                    )
+        self.feature_nets = []
+        for _, key in enumerate(self.input_dict):
+            self.feature_nets.append(
+                eval(self.input_dict[key]["Network"])(
+                    inputs=self.input_dict[key]["Input"],
+                    param_dict=self.input_dict[key]["hyperparams"],
+                    name=key,
+                    output_dimension=self.family.dimension,
                 )
+            )
 
         self.output_layer = IdentityLayer(activation="linear")
         self.FeatureDropoutLayer = tf.keras.layers.Dropout(self.feature_dropout)
@@ -222,9 +210,7 @@ class NAMLSS(BaseModel):
         preds = self._get_training_preds()
         self.family._plot_dist(preds)
 
-    def plot(
-        self,
-    ):
+    def plot(self, levels=50):
         fig, ax = plt.subplots(
             len(self.input_dict), self.family.dimension, figsize=(10, 12)
         )
@@ -285,7 +271,7 @@ class NAMLSS(BaseModel):
                                 X2,
                                 predictions[:, j].reshape(X1.shape),
                                 extend="both",
-                                levels=25,
+                                levels=levels,
                             )
                             ax[idx, j].scatter(
                                 self.data[self.feature_nets[idx].input[0].name],
@@ -304,7 +290,7 @@ class NAMLSS(BaseModel):
             except TypeError:
                 ax[idx, 0].scatter(
                     self.data[self.feature_nets[idx].name],
-                    self.data[self.y] - np.mean(self.data[self.y]),
+                    self.data[self.y],  # - np.mean(self.data[self.y]),
                     s=2,
                     alpha=0.5,
                     color="cornflowerblue",

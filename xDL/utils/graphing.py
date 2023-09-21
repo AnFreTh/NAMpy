@@ -14,6 +14,24 @@ def choose_subplot_dimensions(k):
 
 
 def generate_subplots(k, row_wise=False, figsize=(16, 16)):
+    """
+    Generate a grid of subplots for plotting multiple figures.
+
+    Args:
+        k (int): Number of subplots to create.
+        row_wise (bool, optional): Arrange subplots in row-wise order (True) or column-wise order (False). Defaults to False.
+        figsize (tuple, optional): Figure size in inches, as a tuple (width, height). Defaults to (16, 16).
+
+    Returns:
+        tuple: A tuple containing the generated matplotlib Figure and an array of Axes objects.
+
+    Example:
+        fig, axes = generate_subplots(4, row_wise=True)
+        axes[0].plot(x1, y1)
+        axes[1].plot(x2, y2)
+        # Continue plotting on other axes as needed.
+        plt.show()
+    """
     nrow, ncol = choose_subplot_dimensions(k)
     # Choose your share X and share Y parameters as you wish:
     figure, axes = plt.subplots(

@@ -1,145 +1,133 @@
-from patsy import dmatrices, dmatrix, demo_data
-from patsy import ModelDesc
 import pandas as pd
-import numpy as np
-import patsy
 import re
-import tensorflow as tf
+import numpy as np
+
+default_MLP = {
+    "Network": "MLP",
+    "sizes": [128, 64, 32],
+    "dropout": 0.5,
+    "activation": "relu",
+}
+
+default_Transformer = {
+    "Network": "Transformer",
+    "ff_dropout": 0.1,
+    "dropout": 0.5,
+    "attn_dropout": 0.1,
+    "heads": 8,
+    "depth": 4,
+    "embedding_dim": 32,
+}
+
+default_CubicSplineNet = {
+    "Network": "CubicSplineNet",
+    "n_knots": 15,
+    "activation": "linear",
+    "l1_regularizer": 0.005,
+    "l2_regularizer": 0.005,
+    "l2_activity_regularizer": 0.005,
+}
 
 
-class MLP(object):
-    """
-    Multi-Layer Perceptron (MLP) transformer.
-
-    This class defines an MLP transformer that can be used with patsy for feature transformations.
-    Since the transformations happen inside the tf_dataset this is just an empty shell and returns no transformation but simplyn the raw input
-
-    """
-
-    def __init__(self):
-        pass
-
-    def memorize_chunk(self, x, sizes: list = [128, 128, 64], activation: str = "relu"):
-        """
-        Memorize a chunk of data.
-
-        Args:
-            x: The input data.
-            sizes (list): A list specifying the hidden layer sizes of the MLP.
-            activation (str): The activation function to use in the MLP.
-
-        Returns:
-            None
-        """
-        pass
-
-    def memorize_finish(self):
-        """
-        Finalize the memorization process.
-
-        Returns:
-            None
-        """
-        pass
-
-    def transform(self, x, sizes: list = [128, 128, 64], activation: str = "relu"):
-        """
-        Transform data using the MLP.
-
-        Args:
-            x: The input data.
-            sizes (list): A list specifying the hidden layer sizes of the MLP.
-            activation (str): The activation function to use in the MLP.
-
-        Returns:
-            x: The untransformed data.
-        """
-        return x
+def merge_default_into_defined(defined_dict, default_dict):
+    for key, value in default_dict.items():
+        if key not in defined_dict:
+            defined_dict[key] = value
 
 
-class CubicSplineNet(object):
-    def __init__(self):
-        pass
+def convert_string_to_value(input_dict: dict):
+    for key, value in input_dict.items():
+        if (
+            isinstance(value, int)
+            or isinstance(value, float)
+            or isinstance(value, list)
+        ):
+            # If the value is already an integer, leave it unchanged
+            continue
+        elif value.startswith("[") and value.endswith("]"):
+            # If the value looks like a list (enclosed in square brackets), convert it to a list
+            try:
+                input_dict[key] = eval(
+                    value
+                )  # Using eval to safely convert the string to a list
+            except Exception as e:
+                print(f"Error converting {key} value to a list: {e}")
+        else:
+            # If the value is not a list, check if it's an integer or float and convert accordingly
+            try:
+                numeric_value = float(value)
+                if numeric_value.is_integer():
+                    input_dict[key] = int(numeric_value)
+                else:
+                    input_dict[key] = numeric_value
+            except ValueError:
+                # If the conversion fails, leave the value as a string
+                pass
 
-    def memorize_chunk(self, x, n_knots):
-        pass
-
-    def memorize_finish(self):
-        pass
-
-    def transform(self, x, n_knots):
-        return x
-
-
-class PolySplineNet(object):
-    def __init__(self):
-        pass
-
-    def memorize_chunk(self, x, n_knots):
-        pass
-
-    def memorize_finish(self):
-        pass
-
-    def transform(self, x, n_knots):
-        return x
-
-
-class Transformer(object):
-    """
-    Transformer for categorical features.
-
-    This class defines a transformer for categorical features that can be used with patsy for feature transformations.
-    Since the transformations happen inside the tf_dataset this is just an empty shell and returns no transformation but simplyn the raw input
-
-    """
-
-    def __init__(self):
-        pass
-
-    def memorize_chunk(self, x):
-        """
-        Memorize a chunk of data.
-
-        Args:
-            x: The input data.
-
-        Returns:
-            None
-        """
-        pass
-
-    def memorize_finish(self):
-        """
-        Finalize the memorization process.
-
-        Returns:
-            None
-        """
-        pass
-
-    def transform(self, x):
-        """
-        Transform data using the Transformer.
-
-        Args:
-            x: The input data.
-
-        Returns:
-            x: The transformed data.
-        """
-        assert x.dtype != float, print(
-            "please only specify categorical features to the transformer input in NATT"
-        )
-        return x
+    return input_dict
 
 
-MLP = patsy.stateful_transform(MLP)
-CubicSplineNet = patsy.stateful_transform(CubicSplineNet)
-PolySplineNet = patsy.stateful_transform(PolySplineNet)
-Transformer = patsy.stateful_transform(Transformer)
+def extract_MLP(input: str):
+    feature_dict = {}
+    feature_dict["Network"] = "MLP"
 
-formula_handler = {}
+    pattern = r",(?![^\[\]]*\])"
+
+    # Split the input string using the pattern
+    feature_list = re.split(pattern, input)
+
+    # Remove leading and trailing spaces from each split part
+    feature_list = [part.strip() for part in feature_list]
+
+    for feature in feature_list[1:]:
+        key, value = feature.split("=")
+        feature_dict[key] = value
+
+    merge_default_into_defined(feature_dict, default_MLP)
+
+    return feature_list[0], convert_string_to_value(feature_dict)
+
+
+def extract_Transformer(input: str):
+    feature_dict = {}
+    feature_dict["Network"] = "Transformer"
+
+    pattern = r",(?![^\[\]]*\])"
+
+    # Split the input string using the pattern
+    feature_list = re.split(pattern, input)
+
+    # Remove leading and trailing spaces from each split part
+    feature_list = [part.strip() for part in feature_list]
+
+    for feature in feature_list[1:]:
+        key, value = feature.split("=")
+        feature_dict[key] = value
+
+    merge_default_into_defined(feature_dict, default_Transformer)
+
+    return feature_list[0], convert_string_to_value(feature_dict)
+
+
+def extract_CubicSplineNet(input: str):
+    feature_dict = {}
+    feature_dict["Network"] = "CubicSplineNet"
+
+    pattern = r",(?![^\[\]]*\])"
+
+    # Split the input string using the pattern
+    feature_list = re.split(pattern, input)
+
+    # Remove leading and trailing spaces from each split part
+    feature_list = [part.strip() for part in feature_list]
+
+    for feature in feature_list[1:]:
+        key, value = feature.split("=")
+        feature_dict[key] = value
+
+    merge_default_into_defined(feature_dict, default_CubicSplineNet)
+
+    return feature_list[0], convert_string_to_value(feature_dict)
 
 
 class FormulaHandler:
@@ -178,61 +166,34 @@ class FormulaHandler:
             Tuple containing extracted formula data.
         """
 
+        if not "~" in formula:
+            raise ValueError(
+                "~ must indicate dependent variable. Formula must be of form: y ~ MLP(x1) + MLP(x2) ..."
+            )
+        self.data = data
         self.formula = formula.replace(" ", "")
-
-        if isinstance(formula, tuple(formula_handler.keys())):
-            return formula_handler[type(formula)]
+        y = "".join(self.formula.split("~")[0])
 
         if missing == "drop":
             data.dropna()
             data.reset_index(drop=True)
 
-        if data is not None:
-            self.matrices = dmatrices(formula, data=data, return_type="dataframe")
-
-        idx = self.matrices[1].design_info.term_name_slices.values()
-        sl_idx = [list(idx)[i] for i in range(len(idx))]
-
-        X = [self.matrices[1].iloc[:, sl_idx[i]] for i in range(len(sl_idx))]
         self.formula = "".join(self.formula.split("~")[1:])
         split_formula = self.formula.split("+")[1:]
 
         self.split_formula = split_formula
 
-        if sum(X[0].columns == "Intercept") == 1:
-            self.feature_nets = ["MLP"] + list(
-                filter(None, [feature.split("(")[0] for feature in self.split_formula])
-            )
-        else:
+        if "-1" in self.formula:
+            intercept = False
             self.feature_nets = list(
                 filter(None, [feature.split("(")[0] for feature in self.split_formula])
             )
 
-        assert self.feature_nets.count("Transformer") <= 1, print(
-            "please specify only one Transformer network at the moment"
-        )
-
-        self.hidden_layer_sizes = [
-            re.findall(r"\[(.*?)\]", self.split_formula[i])
-            if re.findall(r"\[(.*?)\]", self.split_formula[i]) != []
-            else ["128, 64, 32"]
-            for i in range(len(self.split_formula))
-        ]
-
-        self.hidden_layer_sizes = [
-            self.hidden_layer_sizes[i][0].split(",")
-            for i in range(len(self.hidden_layer_sizes))
-        ]
-
-        self.hidden_layer_sizes = [
-            [int(j) for j in self.hidden_layer_sizes[i]]
-            for i in range(len(self.hidden_layer_sizes))
-        ]
-
-        if sum(X[0].columns == "Intercept") == 1:
-            intercept = True
         else:
-            intercept = False
+            intercept = True
+            self.feature_nets = ["MLP"] + list(
+                filter(None, [feature.split("(")[0] for feature in self.split_formula])
+            )
 
         self.feature_names = [
             re.search(r"\((\w+)", item).group(1) for item in self.split_formula
@@ -261,9 +222,36 @@ class FormulaHandler:
         for sublist in terms:
             all_features.extend(sublist)
 
+        self.main_dict = {}
+        pattern = r"(\w+)\(([^)]+)\)(?=\+|$|:)"
+
+        matches = re.findall(pattern, self.formula)
+        for network, input_string in matches:
+            modified_string = network + "(" + "'" + input_string + "'" + ")"
+
+            feature_name, feature_dict = eval("extract_" + modified_string)
+
+            feature_dict["dtype"] = self.data[feature_name].dtype
+
+            if not "encoding" in feature_dict.keys():
+                if self.data[feature_name].dtype == object:
+                    if feature_dict["Network"] == "Transformer":
+                        feature_dict["encoding"] = "int"
+                    else:
+                        feature_dict["encoding"] = "one_hot"
+                elif self.data[feature_name].dtype == float:
+                    feature_dict["encoding"] = "normalized"
+                elif np.issubdtype(self.data[feature_name].dtype, np.integer):
+                    if feature_dict["Network"] == "Transformer":
+                        feature_dict["encoding"] = "int"
+                    else:
+                        feature_dict["encoding"] = "one_hot"
+            self.main_dict[feature_name] = feature_dict
+
         return (
             all_features,
-            self.matrices[0].columns[0],
+            y,
             self.feature_nets,
             intercept,
+            self.main_dict,
         )
