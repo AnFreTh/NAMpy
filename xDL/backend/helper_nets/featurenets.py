@@ -253,7 +253,13 @@ def build_cls_mlp(input_dim, factors, dropout):
     mlp_layers = []
     for units in hidden_units:
         # mlp_layers.append(tf.keras.layers.BatchNormalization()),
-        mlp_layers.append(tf.keras.layers.Dense(units, activation="relu"))
+        mlp_layers.append(
+            tf.keras.layers.Dense(
+                units,
+                activation="relu",
+                kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.01),
+            )
+        )
         mlp_layers.append(tf.keras.layers.Dropout(dropout))
 
     return tf.keras.Sequential(mlp_layers)

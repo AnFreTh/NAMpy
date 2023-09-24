@@ -34,7 +34,7 @@ class NATT(AdditiveBaseModel):
         mlp_hidden_factors: list = [2, 4],
         encoder=None,
         explainable=True,
-        out_activation=tf.math.sigmoid,
+        out_activation="linear",
         binning_task="regression",
         batch_size=1024,
     ):
@@ -149,7 +149,12 @@ class NATT(AdditiveBaseModel):
         self.out_activation = out_activation
 
         ####################################
-        self.output_layer = tf.keras.layers.Dense(1, "linear", use_bias=False)
+        self.output_layer = tf.keras.layers.Dense(
+            1,
+            "linear",
+            use_bias=False,
+            kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.0001),
+        )
 
         self.feature_nets = []
         for _, key in enumerate(self.input_dict):
@@ -189,7 +194,7 @@ class NATT(AdditiveBaseModel):
 
         return preds
 
-    def call(self, inputs, training=False):
+    def call(self, inputs):
         """
         Model call function.
 
@@ -203,6 +208,7 @@ class NATT(AdditiveBaseModel):
         if self.encoder.explainable:
             x, expl = self.encoder(inputs)
 
+            # only pass on [cls] token
             x = self.ln(x[:, 0, :])
             x = self.transformer_mlp(x)
 
@@ -367,7 +373,7 @@ class NATT(AdditiveBaseModel):
         column_list = []
         for i, feature in enumerate(self.TRANSFORMER_FEATURES):
             column_list.extend([feature] * self.inputs[feature].shape[1])
-        importances = pd.DataFrame(importances[:, :-1], columns=column_list)
+        importances = pd.DataFrame(importances[:, 1:], columns=column_list)
         average_importances = []
         for col_name in self.TRANSFORMER_FEATURES:
             average_importances.append(importances.filter(like=col_name).sum(axis=1))
@@ -418,7 +424,7 @@ class NATT(AdditiveBaseModel):
         column_list = []
         for i, feature in enumerate(self.TRANSFORMER_FEATURES):
             column_list.extend([feature] * self.inputs[feature].shape[1])
-        importances = pd.DataFrame(importances[:, :-1], columns=column_list)
+        importances = pd.DataFrame(importances[:, 1:], columns=column_list)
         average_importances = []
         for col_name in self.TRANSFORMER_FEATURES:
             average_importances.append(importances.filter(like=col_name).sum(axis=1))

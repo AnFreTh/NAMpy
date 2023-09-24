@@ -7,6 +7,7 @@ from tensorflow.keras.layers import (
     Flatten,
     LayerNormalization,
 )
+import keras.backend as K
 
 
 class TransformerEncoder(tf.keras.Model):
@@ -46,7 +47,7 @@ class TransformerEncoder(tf.keras.Model):
         self.heads = heads
 
         # cls tokens
-        w_init = tf.random_normal_initializer()
+        w_init = tf.random_normal_initializer(0, 0.01)
         self.cls_weights = tf.Variable(
             initial_value=w_init(shape=(1, embedding_dim), dtype="float32"),
             trainable=True,
