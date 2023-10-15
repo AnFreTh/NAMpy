@@ -1,4 +1,4 @@
-xDL (Explainable Deep Learning) aims at training, analyzing and comparing inherentlz interpretable Deep Learning Models. The focus lies on additive models as well as distributional regression models.
+xDL (Explainable Deep Learning) aims at training, analyzing and comparing inherently interpretable Deep Learning Models. The focus lies on additive models as well as distributional regression models.
 
 
 .. contents:: Table of Contents 
@@ -60,8 +60,22 @@ Usage
 ***************
 All models are demonstrated in examples. Generally xDL follows the Keras functional API such that you can use anything available for the Keras models.
 
+
+
+From Strings to Formulas
+========================
+xDL offers multiple Additive Models. Thus we closely follow the R-package mgcv (Simon Wood) in model initialization.
+The general formula for an additive model follows the following notion:
+
+"y ~ feature1 + feature2 + feature1:feature2"
+
+where "~" represents which variable is the dependent variable and which variables are the predictiors. Subsequently, we can just pass the data (pd.DatFrame) with the respectively named columns to the model.
+The ":" denotes a feature interaction between the named features. Thus, all additive models can modelled over flexible features, with flexible shape functions, flexbile feature interactions.
+
+
+
 Initialize a model
-==============
+================
 
 To build and train model, load the model and define the formula, similar to MGCV. You can set the hyperparameters directly in the formula and specify custom loss functions etc. just as you would in any other Keras model
 
@@ -119,6 +133,7 @@ If you have a separate test dataset, you can use the model to preprocess your da
 Note that your test_dataset should have the same form that you passed your training dataset to the model.
 
 .. code-block:: python
+
     test_dataset = model._get_dataset(test_dataset)
     loss = nam.evaluate(test_dataset)
     print("Test Loss:", loss)
@@ -128,12 +143,16 @@ xDL offers multiple methods for visualization for interpretability.
 All models entail an analytics_plot().
 
 .. code-block:: python
+
     model.analytics_plot()
 
 
 The additive models (NAM, NAMLSS, NATT, SNAM) offer the possibitlity to plot each feature effect individually.
+
 .. code-block:: python
+
     model.plot()
+
 
 If you used the NAMLSS model and model all distributional parameters, model.plot() will visualize the effect of each feature on each distributional parameter.
 The models that leverage attention layers offer the possibility to visualize the attention weights with model.plot_importances(), model.plot_categorical_importances(), model.plot_heatmap_importances("category1", "category2")
@@ -155,8 +174,13 @@ xDL offers beyond MLPs multiple shape functions. The following shape functions /
         * Transfer(feature1):Transfer(feature2): ...
 
 
+Note, that you can implement your own shape functions by simply following the provided Guide in the example section.
+Just be aware to adequately name your shape functions and the respective python functions.
+
+
 For Encodings, if conceptually possible the encodings are usable for different shape functions. 
 The following encodings are available:
+
 * Normalized
     * Simple standard normalization of a continuous input feature
 * One-Hot
