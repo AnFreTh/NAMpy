@@ -14,7 +14,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-class TabTransformer(BaseModel):
+class TabTransformerLSS(BaseModel):
     def __init__(
         self,
         data,
@@ -80,7 +80,7 @@ class TabTransformer(BaseModel):
             feature_names (list): List of feature names.
         """
 
-        super(TabTransformer, self).__init__(
+        super(TabTransformerLSS, self).__init__(
             data=data,
             y=y,
             activation=activation,

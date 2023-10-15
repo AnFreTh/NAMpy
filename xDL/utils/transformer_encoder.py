@@ -1,6 +1,5 @@
 import tensorflow as tf
 from xDL.backend.transformerblock import TransformerBlock
-from xDL.backend.helper_nets.layers import *
 import pandas as pd
 from tensorflow.keras.layers import (
     Concatenate,
@@ -8,7 +7,6 @@ from tensorflow.keras.layers import (
     Flatten,
     LayerNormalization,
 )
-from tensorflow.keras import regularizers
 import keras.backend as K
 
 
@@ -298,10 +296,7 @@ class FTTransformerEncoder(tf.keras.Model):
         self.embedded_concatenation = Concatenate(axis=1)
 
         self.num_embedding_layers = [
-            tf.keras.layers.Dense(
-                self.embedding_dim,
-                activation="relu",
-            )
+            tf.keras.layers.Dense(self.embedding_dim, activation="relu", use_bias=False)
             for _ in range(len(self.num_features))
         ]
 

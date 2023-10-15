@@ -157,7 +157,7 @@ class Normal(BaseFamily):
 
     def __init__(self, name="Normal", family=tfd.Normal):
         self.dimension = 2
-        self.param_names = ["mu", "sigma"]
+        self.param_names = ["loc", "scale"]
         super(Normal, self).__init__(name, family)
 
     def _loc_transform(self, x):
@@ -230,7 +230,7 @@ class Logistic(BaseFamily):
 
     def __init__(self, name="Logistic", family=tfd.Logistic):
         self.dimension = 2
-        self.param_names = ["mu", "sigma"]
+        self.param_names = ["loc", "scale"]
         super(Logistic, self).__init__(name, family)
 
     def _loc_transform(self, x):
