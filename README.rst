@@ -32,7 +32,7 @@ Available Models
 +---------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 | TabTransformer `(Huang et al. 2021)`_                                                       | Tabular Transformer Networks with attention layers for categorical features                     |
 +---------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| TabTransformerLSS `(Huang et al. 2021)`_`(Thielmann et al. 2023 (a))`_                      | Distributional Tabular Transformer Networks with attention layers for categorical features      |
+| TabTransformerLSS `(Huang et al. 2021)`_ `(Thielmann et al. 2023 (a))`_                     | Distributional Tabular Transformer Networks with attention layers for categorical features      |
 +---------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 | FT-Transformer `(Gorishniy et al. 2021)`_                                                   | Neural Additive Model with transformer representations for categorical features                 |
 +---------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
@@ -84,7 +84,7 @@ Initialize the model:
 .. code-block:: python
 
     model = NAM(
-        "target ~  -1 + MLP(MedInc) + MLP(AveOccup) + MLP(AveBedrms)+ MLP(Population)+  MLP(Latitude):MLP(Longitude) + MLP(AveRooms)", 
+        "target ~  -1 + MLP(MedInc) + MLP(AveOccup) + MLP(AveBedrms) + MLP(Population)+  MLP(Latitude):MLP(Longitude) + MLP(AveRooms)", 
         data=data, 
         feature_dropout=0.0001
         )
@@ -107,8 +107,66 @@ Train the model with the Keras API:
 Evaluate a model
 ==============
 
+You can simply evaluate your model using the Keras API:
+
 
 .. code-block:: python
 
     loss = nam.evaluate(nam.validation_dataset)
     print("Test Loss:", loss)
+
+If you have a separate test dataset, you can use the model to preprocess your dataset and evaluate. 
+Note that your test_dataset should have the same form that you passed your training dataset to the model.
+
+.. code-block:: python
+    test_dataset = model._get_dataset(test_dataset)
+    loss = nam.evaluate(test_dataset)
+    print("Test Loss:", loss)
+
+
+xDL offers multiple methods for visualization for interpretability.
+All models entail an analytics_plot().
+
+.. code-block:: python
+    model.analytics_plot()
+
+
+The additive models (NAM, NAMLSS, NATT, SNAM) offer the possibitlity to plot each feature effect individually.
+.. code-block:: python
+    model.plot()
+
+If you used the NAMLSS model and model all distributional parameters, model.plot() will visualize the effect of each feature on each distributional parameter.
+The models that leverage attention layers offer the possibility to visualize the attention weights with model.plot_importances(), model.plot_categorical_importances(), model.plot_heatmap_importances("category1", "category2")
+
+
+Available Shape functions and Encodings
+=======================================
+xDL offers beyond MLPs multiple shape functions. The following shape functions / feature networks are available:
+
+* MLP
+    * Simple Multilayer Perceptron with flexible number of neurons, activation function, dropout etc.
+    * Can be used for (higher-order) feature interactions by adding a ":" in between
+        * MLP(feature1):MLP(feature2)
+* CubicSplineNet   
+    * Cubic Splines with equidistantly distributed n_knots
+* Transformer
+    * Standard Attention Transformerblock 
+    * Can (and should) be used for (higher-order) feature interactions by adding a ":" in between
+        * Transfer(feature1):Transfer(feature2): ...
+
+
+For Encodings, if conceptually possible the encodings are usable for different shape functions. 
+The following encodings are available:
+* Normalized
+    * Simple standard normalization of a continuous input feature
+* One-Hot
+    * Standard One-hot encoding. 
+        * For categorical features standard one-hot encoding where one column is added to account for unknown values (['UNK'])
+        * For numerical features, the feature is binned, with the bin boundaries being created by a decision tree
+* Int 
+    * Integer encoding
+        * For categorical features standard one-hot encoding where one value is added to account for unknown values (['UNK'])
+        * For numerical features, the feature is binned, with the bin boundaries being created by a decision tree
+* PLE  
+    * Periodic Linear Encodings
+        * Periodic Linear Encoding for numerical features as introduced by Gorishniy et al. 2022.
