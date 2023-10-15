@@ -30,15 +30,24 @@ Available Models
 +------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------+
 | TDB: QNAM `(Seifert et al. 2024)`_                                     | Quantile Additive Model                                                                                              |
 +------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------+
-
+| TabTransformer `(Huang et al. 2021)`_                                  | Tabular Transformer Networks with attention layers for categorical features                                          |
++------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------+
+| TabTransformerLSS `(Huang et al. 2021)`_`(Thielmann et al. 2023 (a))`_ | Distributional Tabular Transformer Networks with attention layers for categorical features                           |
++------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------+
+| FT-Transformer '(Gorishniy et al. 2021)'_                              | Neural Additive Model with transformer representations for categorical features                                      |
++------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------+
+| FT-TransformerLSS FT-Transformer '(Gorishniy et al. 2021)'_ `(Thielmann et al. 2023 (b))`_  | Distributional Neural Additive Model with transformer representations for categorical features                       |
++------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------+
 
 
 .. _(Agarwal et al. 2021): https://proceedings.neurips.cc/paper_files/paper/2021/file/251bd0442dfcc53b5a761e050f8022b8-Paper.pdf
-.. _(Thielmann et al. 2023 (a)): https://www.aclweb.org/anthology/2020.tacl-1.29 
+.. _(Thielmann et al. 2023 (a)): https://arxiv.org/pdf/2301.11862.pdf 
 .. _(Luber et al. 2023): https://arxiv.org/pdf/2302.09275.pdf
 .. _(Thielmann et al. 2023 (b)): tbd
 .. _(Kruse et al. 2024): tbd
 .. _(Seifert et al. 2024): tbd
+.. _(Huang et al. 2020): https://arxiv.org/abs/2012.06678
+.. _(Gorishniy et al. 2021): https://proceedings.neurips.cc/paper_files/paper/2021/file/9d86d83f925f2149e9edb0ac3b49229c-Paper.pdf
 
 
 If you use one of these implementations, make sure to cite the right paper.
@@ -68,9 +77,6 @@ Load the Data:
     data = pd.DataFrame(housing.data, columns=housing.feature_names)
     # Add the target variable to the DataFrame
     data['target'] = housing.target
-
-    model = LDA(num_topics=25)  # Create model
-    model_output = model.train_model(dataset) # Train the model
 
 
 Initialize the model:
