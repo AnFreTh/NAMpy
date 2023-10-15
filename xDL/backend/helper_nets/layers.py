@@ -75,3 +75,56 @@ class IdentityLayer(Layer):
             return tf.keras.activations.exponential(inputs)
         else:
             raise ValueError("Please use an activation function supported by Keras")
+
+
+class GLULayer(tf.keras.layers.Layer):
+    def __init__(
+        self,
+        units: int = 16,
+        fc_layer=None,
+        virtual_batch_size=None,
+        momentum: float = 0.98,
+        **kwargs
+    ):
+        """
+        Creates a layer with a fully-connected linear layer, followed by batch
+        normalization, and a gated linear unit (GLU) as the activation function.
+
+        Parameters:
+        -----------
+        units: int
+            Number of units in layer. Default (16).
+        fc_layer:tf.keras.layers.Dense
+            This is useful when you want to create a GLU layer with shared parameters. This
+            is necessary because batch normalization should still be uniquely initialized
+            due to the masked inputs in TabNet steps being in a different scale than the
+            original input. Default (None) creates a new FC layer.
+        virtual_batch_size: int
+            Batch size for Ghost Batch Normalization (GBN). Value should be much smaller
+            than and a factor of the overall batch size. Default (None) runs regular batch
+            normalization. If an integer value is specified, GBN is run with that virtual
+            batch size.
+        momentum: float
+            Momentum for exponential moving average in batch normalization. Lower values
+            correspond to larger impact of batch on the rolling statistics computed in
+            each batch. Valid values range from 0.0 to 1.0. Default (0.98).
+        """
+        super(GLULayer, self).__init__(**kwargs)
+        self.units = units
+        self.virtual_batch_size = virtual_batch_size
+        self.momentum = momentum
+
+        if fc_layer:
+            self.fc = fc_layer
+        else:
+            self.fc = tf.keras.layers.Dense(self.units * 2, use_bias=False)
+
+        self.bn = tf.keras.layers.BatchNormalization(
+            virtual_batch_size=self.virtual_batch_size, momentum=self.momentum
+        )
+
+    def call(self, inputs: tf.Tensor, training=None) -> tf.Tensor:
+        x = self.fc(inputs)
+        x = self.bn(x, training=training)
+        x = tf.math.multiply(x[:, : self.units], tf.nn.sigmoid(x[:, self.units :]))
+        return x

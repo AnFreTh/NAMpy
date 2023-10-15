@@ -1,11 +1,11 @@
 import tensorflow as tf
 from tensorflow.keras import regularizers
 from xDL.backend.helper_nets.layers import *
+from xDL.backend.transformerblock import TransformerBlock
+import pandas as pd
 
 
-def MLP(
-    inputs, sizes, name, bias=True, activation="relu", dropout=0.5, output_dimension=1
-):
+def MLP(inputs, param_dict, output_dimension=1, name=None):
     """
     Build a single feature neural network.
 
@@ -23,44 +23,77 @@ def MLP(
     Returns:
         tf.keras.Model: A Keras model representing the single feature neural network.
     """
+
+    assert (
+        param_dict["Network"] == "MLP"
+    ), "Network-Name error. The Network name passed to the MLP is not correct. Expected 'MLP'"
+
+    sizes = param_dict["sizes"]
+    dropout = param_dict["dropout"]
+    activation = param_dict["activation"]
+    if len(inputs) > 1:
+        x = tf.keras.layers.Concatenate()(inputs)
+    else:
+        x = inputs[0]
     dropout = tf.keras.layers.Dropout(dropout)
-    x = tf.keras.layers.Dense(sizes[0], activation=activation, use_bias=bias)(inputs)
+    x = tf.keras.layers.Dense(sizes[0], activation=activation)(x)
     x = dropout(x)
     for size in sizes[1:]:
-        x = tf.keras.layers.Dense(size, activation=activation, use_bias=bias)(x)
+        x = tf.keras.layers.Dense(size, activation=activation)(x)
     x = tf.keras.layers.Dense(output_dimension, activation="linear", use_bias=False)(x)
     model = tf.keras.Model(inputs=inputs, outputs=x, name=name)
     model.reset_states()
     return model
 
 
-def Interaction_MLP(
-    inputs, sizes, name, bias=True, activation="relu", dropout=0.5, output_dimension=1
-):
-    """
-    Build an interaction feature neural network.
+def Transformer(inputs, param_dict, output_dimension=1, name=None):
+    assert (
+        param_dict["Network"] == "Transformer"
+    ), "Network-Name error. The Network name passed to the Transformer is not correct. Expected 'Transformer'"
 
-    This function constructs a neural network model for interaction feature processing.
-    -> returns a tf.keras.Model!
+    if len(inputs) == 1:
+        print(
+            "It is not recommended to use a Transformer for a single feature input. Consider using a MLP instead."
+        )
 
-    Args:
-        inputs (list): A list of input tensors. The input tensors to be concatenated.
-        sizes (list): A list of integers specifying the number of units for each hidden layer.
-        bias (bool, optional): Whether to include bias terms in the Dense layers. Defaults to True.
-        activation (str, optional): Activation function to use for hidden layers. Defaults to "relu".
-        dropout (float, optional): Dropout rate for regularization. Defaults to 0.5.
-        output_dimension (int, optional): Number of units in the output layer. Defaults to 1.
+    inputs = inputs[0]
+    embedding_dim = param_dict["embedding_dim"]
 
-    Returns:
-        tf.keras.Model: A Keras model representing the interaction feature neural network.
-    """
-    dropout = tf.keras.layers.Dropout(dropout)
-    x = tf.keras.layers.Concatenate()(inputs)
-    x = tf.keras.layers.Dense(sizes[0], activation=activation, use_bias=bias)(x)
-    x = dropout(x)
-    for size in sizes[1:]:
-        x = tf.keras.layers.Dense(size, activation=activation, use_bias=bias)(x)
-    x = tf.keras.layers.Dense(output_dimension, activation="linear", use_bias=False)(x)
+    depth = param_dict["depth"]
+    heads = param_dict["heads"]
+    ff_dropout = param_dict["ff_dropout"]
+    attn_dropout = param_dict["attn_dropout"]
+
+    if "n_bins" in param_dict.keys():
+        num_categories = param_dict["n_bins"] + 1
+
+    if param_dict["encoding"] == "PLE":
+        embeddings = tf.keras.layers.Dense(embedding_dim, activation="relu")(inputs)
+        embeddings = tf.expand_dims(embeddings, axis=1, name="dimension_expansion")
+        print(embeddings.shape)
+
+    else:
+        embeddings = tf.keras.layers.Embedding(
+            input_dim=num_categories, output_dim=embedding_dim
+        )(inputs)
+
+        print(embeddings.shape)
+
+    for _ in range(depth):
+        embeddings = TransformerBlock(
+            embedding_dim,
+            heads,
+            embedding_dim,
+            att_dropout=attn_dropout,
+            ff_dropout=ff_dropout,
+            explainable=False,
+        )(embeddings)
+
+    embeddings = tf.keras.layers.Flatten()(embeddings)
+    embeddings = tf.keras.layers.Dense(128, activation="relu")(embeddings)
+    x = tf.keras.layers.Dense(output_dimension, use_bias=False, activation="linear")(
+        embeddings
+    )
     model = tf.keras.Model(inputs=inputs, outputs=x, name=name)
     model.reset_states()
     return model
@@ -115,15 +148,7 @@ class AddWeightsLayer(tf.keras.layers.Layer):
         return inputs + weights
 
 
-def CubicSplineNet(
-    inputs,
-    sizes,
-    name,
-    bias=True,
-    activation=None,
-    dropout=0.5,
-    output_dimension=1,
-):
+def CubicSplineNet(inputs, param_dict, output_dimension=1, name=None):
     """
     Create a Cubic Spline Neural Network.
     -> this takes a cubic basis expansion as an input and adds weights to each column, thus pseudo-adjusting the knot locations.
@@ -142,32 +167,35 @@ def CubicSplineNet(
     """
     # Add small weights to each row except the first and last columns
 
+    assert (
+        param_dict["Network"] == "CubicSplineNet"
+    ), "Network-Name error. The Network name passed to the CubicSplineNet is not correct. Expected 'CubicSplineNet'"
+
+    inputs = inputs[0]
+    activation = param_dict["activation"]
+    l1 = param_dict["l1_regularizer"]
+    l2 = param_dict["l2_regularizer"]
+    l2_activity = param_dict["l2_activity_regularizer"]
+
     weight_shift = AddWeightsLayer()
     x = weight_shift(inputs)
+
     x = tf.keras.layers.Dense(
         output_dimension,
-        activation="linear",
-        use_bias=bias,
-        kernel_regularizer=regularizers.L1L2(l1=0.05, l2=0.05),
-        activity_regularizer=regularizers.L2(0.05),
+        activation=activation,
+        kernel_regularizer=regularizers.L1L2(l1=l1, l2=l2),
+        activity_regularizer=regularizers.L2(l2_activity),
+        use_bias=False,
     )(x)
     model = tf.keras.Model(inputs=inputs, outputs=x, name=name)
     model.reset_states()
     return model
 
 
-def PolySplineNet(
-    inputs,
-    sizes,
-    name,
-    bias=True,
-    activation=None,
-    dropout=0.5,
-    output_dimension=1,
-):
+def PolySplineNet(inputs, param_dict, output_dimension=1, name=None):
     """
-    Create a Polynomial Spline Neural Network.
-    -> this takes a polynomial basis expansion as an input and adds weights to each column, thus pseudo-adjusting the knot locations.
+    Create a Cubic Spline Neural Network.
+    -> this takes a cubic basis expansion as an input and adds weights to each column, thus pseudo-adjusting the knot locations.
 
     Args:
         inputs (tf.Tensor): Input tensor to the network.
@@ -179,17 +207,29 @@ def PolySplineNet(
         output_dimension (int): Dimension of the output (default is 1).
 
     Returns:
-        tf.keras.Model: The polynomial Spline Neural Network model.
+        tf.keras.Model: The Cubic Spline Neural Network model.
     """
+    # Add small weights to each row except the first and last columns
+
+    assert (
+        param_dict["Network"] == "PolySplineNet"
+    ), "Network-Name error. The Network name passed to the PolySplineNet is not correct. Expected 'PolySplineNet'"
+
+    inputs = inputs[0]
+    activation = param_dict["activation"]
+    l1 = param_dict["l1_regularizer"]
+    l2 = param_dict["l2_regularizer"]
+    l2_activity = param_dict["l2_activity_regularizer"]
 
     weight_shift = AddWeightsLayer()
     x = weight_shift(inputs)
+
     x = tf.keras.layers.Dense(
         output_dimension,
-        activation="linear",
-        use_bias=bias,
-        kernel_regularizer=regularizers.L1L2(l1=1e-5, l2=1e-5),
-        activity_regularizer=regularizers.L2(1e-5),
+        activation=activation,
+        use_bias=False,
+        kernel_regularizer=regularizers.L1L2(l1=l1, l2=l2),
+        activity_regularizer=regularizers.L2(l2_activity),
     )(x)
     model = tf.keras.Model(inputs=inputs, outputs=x, name=name)
     model.reset_states()
@@ -212,14 +252,22 @@ def build_cls_mlp(input_dim, factors, dropout):
     hidden_units = [input_dim // f for f in factors]
     mlp_layers = []
     for units in hidden_units:
-        mlp_layers.append(tf.keras.layers.BatchNormalization()),
-        mlp_layers.append(tf.keras.layers.Dense(units, activation="relu"))
+        # mlp_layers.append(tf.keras.layers.BatchNormalization()),
+        mlp_layers.append(
+            tf.keras.layers.Dense(
+                units,
+                activation="relu",
+                kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.01),
+            )
+        )
         mlp_layers.append(tf.keras.layers.Dropout(dropout))
 
     return tf.keras.Sequential(mlp_layers)
 
 
-def build_shape_funcs(dropout=0.1):
+def build_shape_funcs(
+    dropout=0.1, output_dim=1, hidden_units=[128, 128, 64], activation="relu"
+):
     """
     Build shape functions using a multi-layer perceptron (MLP).
 
@@ -233,10 +281,22 @@ def build_shape_funcs(dropout=0.1):
 
     mlp_layers = []
     for units in hidden_units:
-        # mlp_layers.append(BatchNormalization()),
-        mlp_layers.append(tf.keras.layers.Dense(units, activation="relu"))
+        mlp_layers.append(tf.keras.layers.BatchNormalization()),
+        mlp_layers.append(tf.keras.layers.Dense(units, activation=activation))
         mlp_layers.append(tf.keras.layers.Dropout(dropout))
 
-    mlp_layers.append(tf.keras.layers.Dense(1, activation="linear", use_bias=False))
+    mlp_layers.append(
+        tf.keras.layers.Dense(output_dim, activation="linear", use_bias=False)
+    )
 
     return tf.keras.Sequential(mlp_layers)
+
+
+def helper_normalization_net(input_list):
+    layer1 = tf.keras.layers.Concatenate()
+    layer2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+
+    x = layer1(input_list)
+    x = layer2(x)
+
+    return tf.keras.Model(inputs=input_list, outputs=x, name="helper_net")

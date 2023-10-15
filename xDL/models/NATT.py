@@ -2,10 +2,11 @@ import tensorflow as tf
 from keras.callbacks import *
 from sklearn.model_selection import KFold
 from xDL.utils.data_utils import *
-from xDL.backend.basemodel import *
+from xDL.backend.basemodel import AdditiveBaseModel
 from xDL.utils.graphing import *
-from xDL.backend.transformer_encoder import TabTransformerEncoder
+from xDL.backend.transformer_encoder import TransformerEncoder
 from xDL.backend.helper_nets.featurenets import *
+import seaborn as sns
 
 import warnings
 
@@ -13,7 +14,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-class NATT(BaseModel):
+class NATT(AdditiveBaseModel):
     def __init__(
         self,
         formula,
@@ -33,7 +34,9 @@ class NATT(BaseModel):
         mlp_hidden_factors: list = [2, 4],
         encoder=None,
         explainable=True,
-        out_activation=tf.math.sigmoid,
+        out_activation="linear",
+        binning_task="regression",
+        batch_size=1024,
     ):
         """
         Initialize the NATT model.
@@ -90,7 +93,15 @@ class NATT(BaseModel):
             ValueError: If the formula is not a string.
         """
 
-        super(NATT, self).__init__(formula, data, activation, dropout, feature_dropout)
+        super(NATT, self).__init__(
+            formula=formula,
+            data=data,
+            feature_dropout=feature_dropout,
+            val_data=val_data,
+            val_split=val_split,
+            batch_size=batch_size,
+            binning_task=binning_task,
+        )
 
         if not isinstance(formula, str):
             raise ValueError(
@@ -98,11 +109,8 @@ class NATT(BaseModel):
             )
 
         self.formula = formula
-        self.data = data
         self.val_data = val_data
         self.val_split = val_split
-        self.activation = activation
-        self.dropout = dropout
         self.feature_dropout = feature_dropout
         self.classification = classification
 
@@ -120,7 +128,7 @@ class NATT(BaseModel):
         if encoder:
             self.encoder = encoder
         else:
-            self.encoder = TabTransformerEncoder(
+            self.encoder = TransformerEncoder(
                 self.TRANSFORMER_FEATURES,
                 self.inputs,
                 embedding_dim,
@@ -138,45 +146,25 @@ class NATT(BaseModel):
         self.transformer_mlp = build_cls_mlp(
             mlp_input_dim, mlp_hidden_factors, ff_dropout
         )
-        # self.output_layer = Dense(out_dim, activation=out_activation)
-        self.mlp_final = build_cls_mlp(mlp_input_dim, mlp_hidden_factors, ff_dropout)
         self.out_activation = out_activation
 
         ####################################
-        self.output_layer = tf.keras.layers.Dense(1, "linear", use_bias=False)
-
-        # self.num_mlp = [build_shape_funcs() for _ in range(len(self.NUM_FEATURES))]
+        self.output_layer = tf.keras.layers.Dense(
+            1,
+            "linear",
+            use_bias=False,
+            kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.0001),
+        )
 
         self.feature_nets = []
-        for idx, key in enumerate(self.input_dict):
-            if (
-                len(self.input_dict[key]["Input"]) == 1
-                and self.input_dict[key]["Network"] == "MLP"
-            ):
+        for _, key in enumerate(self.input_dict):
+            if self.input_dict[key]["Network"] == "MLP":
                 self.feature_nets.append(
                     eval(self.input_dict[key]["Network"])(
-                        inputs=self.input_dict[key]["Input"][0],
-                        sizes=self.input_dict[key]["Sizes"],
-                        name=key,
-                        activation=self.activation,
-                        dropout=self.dropout,
-                        output_dimension=num_classes,
-                    )
-                )
-
-        for idx, key in enumerate(self.input_dict):
-            if (
-                len(self.input_dict[key]["Input"]) >= 2
-                and self.input_dict[key]["Network"] == "MLP"
-            ):
-                self.feature_nets.append(
-                    Interaction_MLP(
                         inputs=self.input_dict[key]["Input"],
-                        sizes=self.input_dict[key]["Sizes"],
-                        activation=self.activation,
-                        dropout=self.dropout,
+                        param_dict=self.input_dict[key]["hyperparams"],
+                        name=key,
                         output_dimension=num_classes,
-                        name=self.feature_names[idx],
                     )
                 )
 
@@ -206,7 +194,7 @@ class NATT(BaseModel):
 
         return preds
 
-    def call(self, inputs, training=False):
+    def call(self, inputs):
         """
         Model call function.
 
@@ -220,8 +208,8 @@ class NATT(BaseModel):
         if self.encoder.explainable:
             x, expl = self.encoder(inputs)
 
+            # only pass on [cls] token
             x = self.ln(x[:, 0, :])
-            x = self.mlp_final(x)
             x = self.transformer_mlp(x)
 
             self.ms = [self.output_layer(x)]
@@ -242,15 +230,23 @@ class NATT(BaseModel):
             }
         else:
             x = self.encoder(inputs)
-            x = self.mlp_final(x)
-            output = self.output_layer(x)
+            x = self.transformer_mlp(x)
+
+            self.ms = [self.output_layer(x)]
+            self.ms += [network(inputs) for network in self.feature_nets]
+
+            x = tf.keras.layers.Add()(self.ms)
+
+            if self.out_activation == "linear":
+                output = x
+            else:
+                output = self.out_activation(x)
             return output
 
     def plot(self):
         """
         Plot the model's predictions.
         """
-        cols = self.data.columns
 
         # Generate subplots for visualization
         fig, axes = generate_subplots(len(self.input_dict) - 1, figsize=(10, 12))
@@ -377,7 +373,7 @@ class NATT(BaseModel):
         column_list = []
         for i, feature in enumerate(self.TRANSFORMER_FEATURES):
             column_list.extend([feature] * self.inputs[feature].shape[1])
-        importances = pd.DataFrame(importances[:, :-1], columns=column_list)
+        importances = pd.DataFrame(importances[:, 1:], columns=column_list)
         average_importances = []
         for col_name in self.TRANSFORMER_FEATURES:
             average_importances.append(importances.filter(like=col_name).sum(axis=1))
@@ -422,13 +418,13 @@ class NATT(BaseModel):
             n_top_categories (int, optional): Number of top categories to consider (default is 5).
         """
 
-        dataset = self._get_dataset(self.data, shuffle=False, output_mode="int")
+        dataset = self._get_dataset(self.data, shuffle=False)
         importances = self.predict(dataset, verbose=0)["importances"]
 
         column_list = []
         for i, feature in enumerate(self.TRANSFORMER_FEATURES):
             column_list.extend([feature] * self.inputs[feature].shape[1])
-        importances = pd.DataFrame(importances[:, :-1], columns=column_list)
+        importances = pd.DataFrame(importances[:, 1:], columns=column_list)
         average_importances = []
         for col_name in self.TRANSFORMER_FEATURES:
             average_importances.append(importances.filter(like=col_name).sum(axis=1))
@@ -472,7 +468,7 @@ class NATT(BaseModel):
             title (str, optional): Title of the plot (default is "Importances").
         """
 
-        dataset = self._get_dataset(self.data, shuffle=False, output_mode="int")
+        dataset = self._get_dataset(self.data, shuffle=False)
         importances = self.predict(dataset, verbose=0)["importances"]
 
         column_list = []

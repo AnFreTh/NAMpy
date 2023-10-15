@@ -2,24 +2,24 @@ import tensorflow as tf
 from keras.callbacks import *
 from sklearn.model_selection import KFold
 from xDL.utils.data_utils import *
-from xDL.backend.basemodel import *
+from xDL.backend.basemodel import AdditiveBaseModel
 from xDL.utils.graphing import *
-from xDL.backend.transformer_encoder import TabTransformerEncoder
+from xDL.backend.transformer_encoder import TransformerEncoder
 from xDL.backend.helper_nets.featurenets import *
 from xDL.backend.families import *
 import warnings
+import seaborn as sns
 
 # Filter out the specific warning by category
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-class NATTLSS(BaseModel):
+class NATTLSS(AdditiveBaseModel):
     def __init__(
         self,
         formula,
         data,
         family,
-        dropout=0.1,
         feature_dropout=0.001,
         val_split=0.2,
         val_data=None,
@@ -33,6 +33,8 @@ class NATTLSS(BaseModel):
         mlp_hidden_factors: list = [2, 4],
         encoder=None,
         explainable=True,
+        binning_task="regression",
+        batch_size=1024,
     ):
         """
         NATTLSS (Neural Adaptive Tabular Learning with Synthetic Sampling) model.
@@ -89,7 +91,14 @@ class NATTLSS(BaseModel):
         """
 
         super(NATTLSS, self).__init__(
-            formula, data, activation, dropout, feature_dropout
+            formula=formula,
+            data=data,
+            activation=activation,
+            feature_dropout=feature_dropout,
+            val_data=val_data,
+            val_split=val_split,
+            batch_size=batch_size,
+            binning_task=binning_task,
         )
 
         if not isinstance(formula, str):
@@ -110,7 +119,6 @@ class NATTLSS(BaseModel):
             )
 
         self.formula = formula
-        self.data = data
 
         if family == "Normal":
             self.family = Normal()
@@ -131,7 +139,6 @@ class NATTLSS(BaseModel):
         self.val_data = val_data
         self.val_split = val_split
         self.activation = activation
-        self.dropout = dropout
         self.feature_dropout = feature_dropout
 
         self.TRANSFORMER_FEATURES = []
@@ -143,7 +150,7 @@ class NATTLSS(BaseModel):
         if encoder:
             self.encoder = encoder
         else:
-            self.encoder = TabTransformerEncoder(
+            self.encoder = TransformerEncoder(
                 self.TRANSFORMER_FEATURES,
                 self.inputs,
                 embedding_dim,
@@ -172,35 +179,15 @@ class NATTLSS(BaseModel):
         # self.num_mlp = [build_shape_funcs() for _ in range(len(self.NUM_FEATURES))]
 
         self.feature_nets = []
-        for idx, key in enumerate(self.input_dict):
-            if (
-                len(self.input_dict[key]["Input"]) == 1
-                and self.input_dict[key]["Network"] == "MLP"
-            ):
+
+        for _, key in enumerate(self.input_dict):
+            if self.input_dict[key]["Network"] == "MLP":
                 self.feature_nets.append(
                     eval(self.input_dict[key]["Network"])(
-                        inputs=self.input_dict[key]["Input"][0],
-                        sizes=self.input_dict[key]["Sizes"],
-                        name=key,
-                        activation=self.activation,
-                        dropout=self.dropout,
-                        output_dimension=self.family.dimension,
-                    )
-                )
-
-        for idx, key in enumerate(self.input_dict):
-            if (
-                len(self.input_dict[key]["Input"]) >= 2
-                and self.input_dict[key]["Network"] == "MLP"
-            ):
-                self.feature_nets.append(
-                    Interaction_MLP(
                         inputs=self.input_dict[key]["Input"],
-                        sizes=self.input_dict[key]["Sizes"],
-                        activation=self.activation,
-                        dropout=self.dropout,
+                        param_dict=self.input_dict[key]["hyperparams"],
+                        name=key,
                         output_dimension=self.family.dimension,
-                        name=self.feature_names[idx],
                     )
                 )
 
@@ -219,6 +206,18 @@ class NATTLSS(BaseModel):
             _type_: negative Log likelihood of respective input distribution
         """
         return -y_hat.log_prob(tf.cast(y_true, dtype=tf.float32))
+
+    def CRPS(self, y_true, y_hat):
+        """CRPS Loss function
+
+        Args:
+            y_true (_type_): True Labels
+            y_hat (_type_): Predicted Distribution
+
+        Returns:
+            _type_: nCRPS score
+        """
+        return self.family.CRPS(y_true, y_hat)
 
     def _get_plotting_preds(self, training_data=False):
         """
@@ -462,7 +461,7 @@ class NATTLSS(BaseModel):
         Returns:
             None
         """
-        dataset = self._get_dataset(self.data, shuffle=False, output_mode="int")
+        dataset = self._get_dataset(self.data, shuffle=False)
         importances = self.predict(dataset, verbose=0)["importances"]
 
         column_list = []
@@ -514,7 +513,7 @@ class NATTLSS(BaseModel):
         Returns:
             None
         """
-        dataset = self._get_dataset(self.data, shuffle=False, output_mode="int")
+        dataset = self._get_dataset(self.data, shuffle=False)
         importances = self.predict(dataset, verbose=0)["importances"]
 
         column_list = []

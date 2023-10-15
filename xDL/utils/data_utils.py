@@ -3,16 +3,22 @@ import tensorflow as tf
 from tqdm import tqdm
 import pandas as pd
 import bisect
+import re
+from sklearn.tree import _tree
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from keras.utils import to_categorical
 
 
 def df_to_dataset(
     dataframe: pd.DataFrame,
+    training_dataframe: pd.DataFrame,
     input_dict: dict,
     target: str = None,
     shuffle: bool = True,
     batch_size: int = 1024,
     validation_split=None,
-    output_mode="one_hot",
+    feature_information: dict = {},
+    task="regression",
 ):
     """
     Converts a Pandas DataFrame into a TensorFlow Dataset.
@@ -35,49 +41,57 @@ def df_to_dataset(
         labels = df.pop(target)
         dataset = {}
         for key, value in df.items():
-            if value.dtype == object:
-                if output_mode == "int":
+            if (
+                feature_information[key]["encoding"] == "int"
+                or feature_information[key]["encoding"] == "one_hot"
+                or feature_information[key]["encoding"] == "PLE"
+            ):
+                if value.dtype == object:
                     value = np.expand_dims(value, 1)
                     lookup_class = tf.keras.layers.StringLookup
                     # Create a lookup layer which will turn strings into integer indices
-                    lookup = lookup_class(output_mode=output_mode)
+                    lookup = lookup_class(
+                        output_mode=feature_information[key]["encoding"]
+                    )
                     # Learn the set of possible string values and assign them a fixed integer index
-                    lookup.adapt(value)
+                    lookup.adapt(training_dataframe[key])
                     # Turn the string input into integer indices
                     encoded_feature = lookup(value)
 
-                else:
-                    lookup_class = tf.keras.layers.StringLookup
-                    # Create a lookup layer which will turn strings into integer indices
-                    lookup = lookup_class(output_mode=output_mode)
-                    # Learn the set of possible string values and assign them a fixed integer index
-                    lookup.adapt(value)
-                    # Turn the string input into integer indices
-                    encoded_feature = lookup(value)
+                elif value.dtype == float:
+                    encoded_feature = numerical_feature_binning(
+                        training_dataframe,
+                        key,
+                        value,
+                        labels,
+                        target,
+                        n_bins=feature_information[key]["n_bins"],
+                        task=task,
+                        encoding_type=feature_information[key]["encoding"],
+                    )
 
-            elif value.dtype == float:
-                if key in input_dict:
-                    if input_dict[key]["Network"] == "CubicSplineNet":
-                        expander = CubicExpansion(input_dict[key]["Sizes"][0])
-                        encoded_feature = expander.expand(value)
-
-                    elif input_dict[key]["Network"] == "PolySplineNet":
-                        expander = PolynomialExpansion(input_dict[key]["Sizes"][0])
-                        encoded_feature = expander.expand(value)
-
+                elif np.issubdtype(value.dtype, np.integer):
+                    if feature_information[key]["encoding"] == "one_hot":
+                        encoded_feature = to_categorical(value)
                     else:
-                        normalizer = tf.keras.layers.Normalization
-                        norm = normalizer()
-                        norm.adapt(value)
-                        encoded_feature = tf.transpose(norm(value))
+                        encoded_feature = np.expand_dims(value, 1) + 1
+
+            elif feature_information[key]["encoding"] == "normalized":
+                if feature_information[key]["Network"] == "CubicSplineNet":
+                    expander = CubicExpansion(feature_information[key]["n_knots"])
+                    encoded_feature = expander.expand(
+                        value, training_dataframe[key], training_dataframe[target]
+                    )
                 else:
                     normalizer = tf.keras.layers.Normalization
                     norm = normalizer()
-                    norm.adapt(value)
+                    norm.adapt(training_dataframe[key])
                     encoded_feature = tf.transpose(norm(value))
 
-            elif value.dtype == int:
-                encoded_feature = np.expand_dims(value, 1)
+            else:
+                raise ValueError(
+                    f"the datatype for variable {key}: {value.dtype} is not supported"
+                )
 
             dataset[key] = np.array(encoded_feature)  #
 
@@ -112,27 +126,6 @@ def df_to_dataset(
         return dataset
 
 
-# get the caterogical prep layer for transformer
-def build_categorical_prep(data: pd.DataFrame, categorical_features: list):
-    """
-    Builds categorical preparation layers for transformer models.
-
-    Args:
-        data (pd.DataFrame): Input data as a Pandas DataFrame.
-        categorical_features (list): List of categorical feature names.
-
-    Returns:
-        dict: A dictionary of categorical preparation layers.
-    """
-
-    category_prep_layers = {}
-    for c in tqdm(categorical_features):
-        lookup = tf.keras.layers.StringLookup(vocabulary=data[c].unique())
-        category_prep_layers[c] = lookup
-
-    return category_prep_layers
-
-
 def generate_plotting_data(df, num_samples, new_data={}):
     """
     Generates data for plotting purposes.
@@ -149,7 +142,7 @@ def generate_plotting_data(df, num_samples, new_data={}):
 
     for column in df.columns:
         if pd.api.types.is_numeric_dtype(df[column]):
-            if df[column].equals(df[column].astype(int)):
+            if pd.api.types.is_integer_dtype(df[column].dtype):
                 unique_values = sorted(df[column].unique())
                 num_unique = len(unique_values)
                 repetitions = num_samples // num_unique
@@ -158,6 +151,8 @@ def generate_plotting_data(df, num_samples, new_data={}):
                 new_data[column] = np.concatenate(
                     (repeated_values, unique_values[:remaining_samples])
                 )
+
+                new_data[column].astype(int)
             else:
                 min_value = df[column].min()
                 max_value = df[column].max()
@@ -278,7 +273,7 @@ class CubicExpansion:
         S = D.T @ np.linalg.inv(B) @ D
         return F, S
 
-    def expand(self, x):
+    def expand(self, x, train_x, train_target):
         """
 
         :param x: x values to be evalutated
@@ -286,7 +281,13 @@ class CubicExpansion:
         :return:
         """
 
+        # xk = get_optimal_knots(train_x, train_target, n_bins=self.num_knots)
         xk = np.linspace(x.min(), x.max(), self.num_knots)
+
+        # xk.append(train_x.min())
+        # xk.append(train_x.max())
+        # xk = np.sort(list(set(xk)))
+
         n = len(x)
         k = len(xk)
         F, S = self.get_FS(xk)
@@ -306,3 +307,199 @@ class CubicExpansion:
             base[i, j - 1] += a_jm
             base[i, j] += a_jp
         return base
+
+
+def tree_to_code(tree, feature_names):
+    """
+    Convert a scikit-learn decision tree into a list of conditions.
+
+    Args:
+        tree (sklearn.tree.DecisionTreeRegressor or sklearn.tree.DecisionTreeClassifier):
+            The decision tree model to be converted.
+        feature_names (list of str): The names of the features used in the tree.
+        Y (array-like): The target values associated with the tree.
+
+    Returns:
+        list of str: A list of conditions representing the decision tree paths.
+
+    Example:
+        # Convert a decision tree into a list of conditions
+        tree_conditions = tree_to_code(tree_model, feature_names, target_values)
+    """
+
+    tree_ = tree.tree_
+    feature_name = [
+        feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
+        for i in tree_.feature
+    ]
+    pathto = dict()
+    my_list = []
+
+    global k
+    k = 0
+
+    def recurse(node, depth, parent):
+        global k
+        indent = "  " * depth
+
+        if tree_.feature[node] != _tree.TREE_UNDEFINED:
+            # name = df_name + "[" + "'" + feature_name[node]+ "'" + "]"
+            name = feature_name[node]
+            threshold = tree_.threshold[node]
+            s = "{} <= {} ".format(name, threshold, node)
+            if node == 0:
+                pathto[node] = "(" + s + ")"
+            else:
+                pathto[node] = "(" + pathto[parent] + ")" + " & " + "(" + s + ")"
+
+            recurse(tree_.children_left[node], depth + 1, node)
+            s = "{} > {}".format(name, threshold)
+            if node == 0:
+                pathto[node] = s
+            else:
+                pathto[node] = "(" + pathto[parent] + ")" + " & " + "(" + s + ")"
+            recurse(tree_.children_right[node], depth + 1, node)
+        else:
+            k = k + 1
+            my_list.append(pathto[parent])
+            # print(k,')',pathto[parent], tree_.value[node])
+
+    recurse(0, 1, 0)
+
+    return my_list
+
+
+def numerical_feature_binning(
+    training_dataframe,
+    feature_name,
+    feature,
+    target,
+    target_name,
+    n_bins=20,
+    tree_params={},
+    task="regression",
+    encoding_type="int",
+):
+    """
+    Perform numerical feature binning using decision tree-based discretization.
+
+    Args:
+        feature (array-like): The numerical feature to be binned.
+        target (array-like): The target values associated with the feature.
+        n_bins (int, optional): The maximum number of bins. Defaults to 20.
+        tree_params (dict, optional): Additional parameters to be passed to the decision tree model.
+        task (str, optional): The machine learning task, either "regression" or "classification".
+                             Defaults to "regression".
+        encoding_type (str, optional): The type of encoding to use for the bins, either "int" for integer
+                                    encoding or "one_hot" for one-hot encoding. Defaults to "int".
+
+    Returns:
+        tf.Tensor: The binned and encoded feature as a TensorFlow tensor.
+
+    Raises:
+        ValueError: If the specified task or encoding type is not supported.
+
+    Example:
+        # Bin and encode a numerical feature for regression task.
+        binned_feature = numerical_feature_binning(
+            feature, target, n_bins=10, task="regression", encoding_type="int"
+        )
+    """
+    # adjust for min and max nodes
+    if task == "regression":
+        dt = DecisionTreeRegressor(max_leaf_nodes=n_bins, **tree_params)
+    elif task == "classification":
+        dt = DecisionTreeClassifier(max_leaf_nodes=n_bins, **tree_params)
+    else:
+        raise ValueError("This task is not supported")
+
+    dt.fit(
+        np.expand_dims(training_dataframe[feature_name], 1),
+        training_dataframe[target_name],
+    )
+
+    conditions = tree_to_code(dt, ["feature"])
+
+    result_list = []
+    for idx, cond in enumerate(conditions):
+        if encoding_type == "int" or encoding_type == "PLE":
+            result_list.append(eval(cond) * (idx + 1))
+        elif encoding_type == "one_hot":
+            result_list.append(eval(cond) * 1)
+        else:
+            raise ValueError("This encoding type is not supported")
+
+    if encoding_type == "int":
+        encoded_feature = np.expand_dims(np.sum(np.stack(result_list).T, axis=1), 1)
+        return tf.cast(tf.convert_to_tensor(encoded_feature), dtype=tf.int64)
+    elif encoding_type == "one_hot":
+        encoded_feature = np.stack(result_list).T
+
+        return tf.cast(tf.convert_to_tensor(encoded_feature), dtype=tf.int64)
+    elif encoding_type == "PLE":
+        encoded_feature = np.expand_dims(np.sum(np.stack(result_list).T, axis=1), 1)
+
+        encoded_feature = tf.cast(
+            tf.convert_to_tensor(encoded_feature) - 1, dtype=tf.int64
+        )
+
+        pattern = r"-?\d+\.\d+"  # This pattern matches integers and floats
+        # Initialize an empty list to store the extracted numbers
+        locations = []
+        # Iterate through the strings and extract numbers
+        for string in conditions:
+            matches = re.findall(pattern, string)
+            locations.extend(matches)
+
+        locations = [float(number) for number in locations]
+
+        locations = list(set(locations))
+
+        locations = locations = np.sort(locations)
+
+        ple_encoded_feature = np.zeros(
+            (len(feature), tf.reduce_max(encoded_feature).numpy() + 1)
+        )
+
+        for idx in range(len(encoded_feature)):
+            ple_encoded_feature[idx][encoded_feature[idx]] = (
+                feature[idx] - locations[(encoded_feature[idx].numpy() - 2)[0]]
+            ) / (
+                locations[(encoded_feature[idx].numpy() - 1)[0]]
+                - locations[(encoded_feature[idx].numpy() - 2)[0]]
+            )
+            ple_encoded_feature[idx, : encoded_feature[idx].numpy()[0]] = 1
+
+        if ple_encoded_feature.shape[1] == 1:
+            return tf.zeros([len(feature), n_bins])
+
+        else:
+            return tf.cast(tf.convert_to_tensor(ple_encoded_feature), dtype=tf.float32)
+
+
+def get_optimal_knots(feature, target, n_bins=20, tree_params={}, task="regression"):
+    if task == "regression":
+        dt = DecisionTreeRegressor(max_leaf_nodes=n_bins, **tree_params)
+    elif task == "classification":
+        dt = DecisionTreeClassifier(max_leaf_nodes=n_bins, **tree_params)
+    else:
+        raise ValueError("This task is not supported")
+
+    dt.fit(np.expand_dims(feature, 1), target)
+
+    conditions = tree_to_code(dt, ["feature"], target)
+
+    pattern = r"-?\d+\.\d+"  # This pattern matches integers and floats
+
+    # Initialize an empty list to store the extracted numbers
+    locations = [np.min(feature)]
+
+    # Iterate through the strings and extract numbers
+    for string in conditions:
+        matches = re.findall(pattern, string)
+        locations.extend(matches)
+    locations.append(np.max(feature))
+    # Convert the extracted numbers to floats
+    locations = [float(number) for number in locations]
+
+    return list(set(locations))
