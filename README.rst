@@ -232,7 +232,7 @@ It is important to use the prefix "extract_" infront of your function. It could 
 
 .. code-block:: python
 
-    def extract_LinearPRedictor(input: str):
+    def extract_LinearPredictor(input: str):
         feature_dict = {}
         feature_dict["Network"] = "LinearPredictor"
 
@@ -255,7 +255,7 @@ You should also lose the prefix.
 
 .. code-block:: python
 
-    def LinearPRedictor(inputs, param_dict, output_dimension=1, name=None):
+    def LinearPredictor(inputs, param_dict, output_dimension=1, name=None):
         assert (
         param_dict["Network"] == "LinearPredictor"
         ), 
