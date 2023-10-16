@@ -1,4 +1,4 @@
-.. image:: https://github.com/AFThielmann/xDL/dev/namlss_structure.png?raw=true
+.. image:: https://github.com/AFThielmann/xDL/blob/dev/namlss_structure.png
   :width: 100
   :alt: Logo
 
@@ -215,6 +215,6 @@ with the predictive distribution when omitting each feature on a permutation tes
 
 
 
-.. image:: https://github.com/AFThielmann/xDL/dev/significance.png
+.. image:: https://github.com/AFThielmann/xDL/blob/dev/significance.png
   :width: 100
   :alt: significance
