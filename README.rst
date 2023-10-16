@@ -215,6 +215,6 @@ with the predictive distribution when omitting each feature on a permutation tes
 
 
 
-.. image:: https://github.com/AFThielmann/xDL/dev/significance.png?raw=true
+.. image:: https://github.com/AFThielmann/xDL/dev/significance.png
   :width: 100
-  :alt: Logo
+  :alt: significance
