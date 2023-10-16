@@ -9,6 +9,7 @@ from xDL.backend.helper_nets.layers import *
 from xDL.utils.graphing import *
 from xDL.utils.helper_funcs import *
 import warnings
+from scipy.stats import ttest_ind
 
 # Filter out the specific warning by category
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -16,7 +17,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 class NAM(AdditiveBaseModel):
     """
-    NAMLSS Model Class for fitting a Neural Additive Model for Location Scale and Shape
+    NAML Model Class for fitting a Neural Additive Model
     """
 
     def __init__(
@@ -49,7 +50,6 @@ class NAM(AdditiveBaseModel):
         Attributes:
             formula (str): The formula for feature transformations.
             data: The input data.
-            family: The distribution family for the target variable.
             dropout (float): The dropout rate for model layers.
             feature_dropout (float): The feature dropout rate.
             val_data: Validation data to use.
@@ -97,6 +97,9 @@ class NAM(AdditiveBaseModel):
         else:
             num_classes = 1
 
+        if self.fit_intercept:
+            self.intercept_layer = InterceptLayer()
+
         self.feature_nets = []
         for _, key in enumerate(self.input_dict):
             self.feature_nets.append(
@@ -127,11 +130,9 @@ class NAM(AdditiveBaseModel):
         if training:
             outputs = [self.FeatureDropoutLayer(output) for output in outputs]
         summed_outputs = Add()(outputs)
-
         # Manage the intercept:
         if self.fit_intercept:
-            intercept_layer = InterceptLayer()
-            summed_outputs = intercept_layer(summed_outputs)
+            summed_outputs = self.intercept_layer(summed_outputs)
         output = self.output_layer(summed_outputs)
         return output
 
@@ -316,3 +317,35 @@ class NAM(AdditiveBaseModel):
 
         plt.tight_layout(pad=0.4, w_pad=0.3)
         plt.show()
+
+    def get_significance(self, permutations=5000):
+        """computes pseudo permutation significance by comparing the complete prediction distribution with
+          a prediction distribution that omits a feature (variable)
+          So far without the intercept
+
+        Returns:
+            pd.DataFrame: DataFrame vontaining variable names, t-statistics and p-values
+        """
+        preds = self._get_plotting_preds(training_data=True)
+
+        all_preds = np.sum(preds, axis=0)
+
+        cols = list(self.input_dict.keys())
+
+        result_df = pd.DataFrame(columns=["feature", "t-stat", "p_value"])
+
+        for i in range(len(preds)):
+            preds_without_feature_i = all_preds - preds[i]
+
+            stat, p_value = ttest_ind(
+                all_preds,
+                preds_without_feature_i,
+                equal_var=False,
+                permutations=permutations,
+            )
+            res_df = pd.DataFrame(
+                [[cols[i], np.round(stat, 4), np.round(p_value, 4)]],
+                columns=["feature", "t-stat", "p_value"],
+            )
+            result_df = pd.concat([result_df, res_df], ignore_index=True)
+        return result_df

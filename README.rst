@@ -1,3 +1,9 @@
+.. image:: https://github.com/AFThielmann/xDL/dev/namlss_structure.png?raw=true
+  :width: 100
+  :alt: Logo
+
+
+
 xDL (Explainable Deep Learning) aims at training, analyzing and comparing inherently interpretable Deep Learning Models. The focus lies on additive models as well as distributional regression models.
 
 
@@ -58,7 +64,7 @@ If you implemented a model and wish to update any part of it, or do not want you
 ***************
 Usage
 ***************
-All models are demonstrated in examples. Generally xDL follows the Keras functional API such that you can use anything available for the Keras models.
+All models are demonstrated in the examples folder. Generally xDL follows the Keras functional API such that you can use anything available for the Keras models.
 
 
 
@@ -194,3 +200,21 @@ The following encodings are available:
 * PLE  
     * Periodic Linear Encodings
         * Periodic Linear Encoding for numerical features as introduced by Gorishniy et al. 2022.
+
+
+
+Pseudo Significance
+=======================================
+For the additive models, xDL computes a pseudo-feature significance where possible, by simply comparing the predictive distribution
+with the predictive distribution when omitting each feature on a permutation test basis.
+
+.. code-block:: python
+
+    significances = model.get_significance()
+    print(significances)
+
+
+
+.. image:: https://github.com/AFThielmann/xDL/dev/significance.png?raw=true
+  :width: 100
+  :alt: Logo

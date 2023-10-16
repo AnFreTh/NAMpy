@@ -156,6 +156,9 @@ class NATT(AdditiveBaseModel):
             kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.0001),
         )
 
+        if self.fit_intercept:
+            self.intercept_layer = InterceptLayer()
+
         self.feature_nets = []
         for _, key in enumerate(self.input_dict):
             if self.input_dict[key]["Network"] == "MLP":
@@ -212,15 +215,20 @@ class NATT(AdditiveBaseModel):
             x = self.ln(x[:, 0, :])
             x = self.transformer_mlp(x)
 
-            self.ms = [self.output_layer(x)]
-            self.ms += [network(inputs) for network in self.feature_nets]
+            outputs = [self.output_layer(x)]
+            outputs += [network(inputs) for network in self.feature_nets]
 
-            x = tf.keras.layers.Add()(self.ms)
+            summed_outputs = tf.keras.layers.Add()(outputs)
+
+            # Manage the intercept:
+            if self.fit_intercept:
+                summed_outputs = self.intercept_layer(summed_outputs)
+            output = self.identity_layer(summed_outputs)
 
             if self.out_activation == "linear":
-                output = x
+                output = summed_outputs
             else:
-                output = self.out_activation(x)
+                output = self.out_activation(summed_outputs)
             att_testing_weights = self.encoder.att_weights
 
             return {
