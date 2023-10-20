@@ -44,7 +44,7 @@ Available Models
 +---------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 | FT-Transformer `(Gorishniy et al. 2021)`_                                                   | Neural Additive Model with transformer representations for categorical features                 |
 +---------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| FT-TransformerLSS FT-Transformer `(Gorishniy et al. 2021)`_ `(Thielmann et al. 2023 (b))`_  | Distributional Neural Additive Model with transformer representations for categorical features  |
+| FT-TransformerLSS `(Gorishniy et al. 2021)`_ `(Thielmann et al. 2023 (b))`_                 | Distributional Neural Additive Model with transformer representations for categorical features  |
 +---------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 
 
