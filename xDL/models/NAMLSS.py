@@ -120,6 +120,9 @@ class NAMLSS(AdditiveBaseModel):
 
         self.feature_dropout = feature_dropout
 
+        if self.fit_intercept:
+            self.intercept_layer = InterceptLayer()
+
         self.feature_nets = []
         for _, key in enumerate(self.input_dict):
             self.feature_nets.append(
@@ -163,8 +166,7 @@ class NAMLSS(AdditiveBaseModel):
 
         # Manage the intercept:
         if self.fit_intercept:
-            intercept_layer = InterceptLayer()
-            summed_outputs = intercept_layer(summed_outputs)
+            summed_outputs = self.intercept_layer(summed_outputs)
         output = self.output_layer(summed_outputs)
 
         # Add probability Layer

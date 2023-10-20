@@ -1,4 +1,12 @@
+.. image:: https://github.com/AFThielmann/xDL/blob/dev/namlss_structure.png
+  :width: 1000
+  :alt: Logo
+
+
+
 xDL (Explainable Deep Learning) aims at training, analyzing and comparing inherently interpretable Deep Learning Models. The focus lies on additive models as well as distributional regression models.
+It uses the tensorflow.keras framework and thus offers the complete flexibility of any Keras Model.
+It is adjustable in a way that every user can easily write their own shape function / feature network.
 
 
 .. contents:: Table of Contents 
@@ -36,7 +44,7 @@ Available Models
 +---------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 | FT-Transformer `(Gorishniy et al. 2021)`_                                                   | Neural Additive Model with transformer representations for categorical features                 |
 +---------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| FT-TransformerLSS FT-Transformer `(Gorishniy et al. 2021)`_ `(Thielmann et al. 2023 (b))`_  | Distributional Neural Additive Model with transformer representations for categorical features  |
+| FT-TransformerLSS `(Gorishniy et al. 2021)`_ `(Thielmann et al. 2023 (b))`_                 | Distributional Neural Additive Model with transformer representations for categorical features  |
 +---------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 
 
@@ -58,7 +66,7 @@ If you implemented a model and wish to update any part of it, or do not want you
 ***************
 Usage
 ***************
-All models are demonstrated in examples. Generally xDL follows the Keras functional API such that you can use anything available for the Keras models.
+All models are demonstrated in the examples folder. Generally xDL follows the Keras functional API such that you can use anything available for the Keras models.
 
 
 
@@ -194,3 +202,69 @@ The following encodings are available:
 * PLE  
     * Periodic Linear Encodings
         * Periodic Linear Encoding for numerical features as introduced by Gorishniy et al. 2022.
+
+
+
+Pseudo Significance
+=======================================
+For the additive models, xDL computes a pseudo-feature significance where possible, by simply comparing the predictive distribution
+with the predictive distribution when omitting each feature on a permutation test basis.
+
+.. code-block:: python
+
+    significances = model.get_significance()
+    print(significances)
+
+
+
+.. image:: https://github.com/AFThielmann/xDL/blob/dev/significance.png
+  :width: 300
+  :alt: significance
+
+
+
+**************************
+Individual Shape Functions
+**************************
+Since xDL is built from strings to formulas to functions, you can easily write your own shape functions / feature networks.
+However, you must be careful how you name your functions. We could for instace write a simple linear predictor. 
+It is important to use the prefix "extract_" infront of your function. It could for instance look like this:
+
+.. code-block:: python
+
+    def extract_LinearPredictor(input: str):
+        feature_dict = {}
+        feature_dict["Network"] = "LinearPredictor"
+
+        pattern = r",(?![^\[\]]*\])"
+
+        # Split the input string using the pattern
+        feature_list = re.split(pattern, input)
+
+        # Remove leading and trailing spaces from each split part
+        feature_list = [part.strip() for part in feature_list]
+
+        return feature_list[0], 1
+
+
+
+Now for our model to know which feature network it should build for the given named LinearPredictor, you need to specify that.
+Be again careful how you name your functions. Since the complete framework is written with tensorflow.keras, you must specify any shape functions as a tf.keras.model.
+You should also lose the prefix.
+
+
+.. code-block:: python
+
+    def LinearPredictor(inputs, param_dict, output_dimension=1, name=None):
+        assert (
+        param_dict["Network"] == "LinearPredictor"
+        ), 
+
+        x = tf.keras.layers.Dense(1, use_bias=False)(inputs)
+
+        model = tf.keras.Model(inputs=inputs, outputs=x, name=name)
+        model.reset_states()
+        return model
+
+
+ANd just like that you have defined your own shape function that you can use in one of the additive models in xDL.

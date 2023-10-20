@@ -180,6 +180,9 @@ class NATTLSS(AdditiveBaseModel):
 
         self.feature_nets = []
 
+        if self.fit_intercept:
+            self.intercept_layer = InterceptLayer()
+
         for _, key in enumerate(self.input_dict):
             if self.input_dict[key]["Network"] == "MLP":
                 self.feature_nets.append(
@@ -206,18 +209,6 @@ class NATTLSS(AdditiveBaseModel):
             _type_: negative Log likelihood of respective input distribution
         """
         return -y_hat.log_prob(tf.cast(y_true, dtype=tf.float32))
-
-    def CRPS(self, y_true, y_hat):
-        """CRPS Loss function
-
-        Args:
-            y_true (_type_): True Labels
-            y_hat (_type_): Predicted Distribution
-
-        Returns:
-            _type_: nCRPS score
-        """
-        return self.family.CRPS(y_true, y_hat)
 
     def _get_plotting_preds(self, training_data=False):
         """
@@ -269,8 +260,7 @@ class NATTLSS(AdditiveBaseModel):
 
             # Manage the intercept:
             if self.fit_intercept:
-                intercept_layer = InterceptLayer()
-                summed_outputs = intercept_layer(summed_outputs)
+                summed_outputs = self.intercept_layer(summed_outputs)
             output = self.identity_layer(summed_outputs)
 
             # Add probability Layer

@@ -1,31 +1,37 @@
 TODO:
+*******************
+Models to implement:
+******************
+    - TabTransformer :white_check_mark:
+        - TabTransformerLSS :white_check_mark:
+    - TabNet :question:
+        - TabNetLSS :question:
+    - FT-Transformer :white_check_mark:
+        FT-TransformerLSS :white_check_mark:
+    - QNAM :question:
+    - BNAM :question:
 
-### Models to implement:
-    - TabTransformer https://arxiv.org/pdf/2012.06678.pdf     https://keras.io/examples/structured_data/tabtransformer/
-        - TabTransformerLSS
-    - TabNet https://arxiv.org/abs/1908.07442     https://github.com/jeyabbalas/tabnet
-        - TabNetLSS
-    - FT-Transformer  https://arxiv.org/pdf/2106.11959.pdf  https://github.com/aruberts/TabTransformerTF
-        - FT-TransformerLSS
-    - QNAM
-    - BNAM
-    - BlackBox-Models for baselines
 
+***************************************************************
+Make real Spline Optimization with smoothing :question:
+***************************************************************
 
-### Featurenetworks to implement
-    - Polynomial Expansion
+***************************************************************
+Featurenetworks to implement
+***************************************************************
+    - Polynomial Expansion :white_check_mark:
+    - Spline Expansions also for MLP :question:
     - Tensorproduct Expansion
-    - Numerical Feature Binning: Transformer
-    - Neural Decision Trees
-    - RandomFourierFeatures
+    - Numerical Feature Binning: Transformer :white_check_mark:
+    - Neural Decision Trees :question:
+    - RandomFourierFeatures :question:
 
-### Interpretability
-    - Orthogonalization
-    - Approx Fisher for SNAM
-    - Pseudo Significance - LOO Distribution Shift
 
-### LSS
-    - Testing Families
-    - better plotting
+***************************************************************
+LSS
+***************************************************************
+    - Testing Families :question:
+    - add CRPS :question:
+    - better plotting :white_check_mark:
 
 
