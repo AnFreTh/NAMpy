@@ -78,10 +78,13 @@ def df_to_dataset(
 
             elif feature_information[key]["encoding"] == "normalized":
                 if feature_information[key]["Network"] == "CubicSplineNet":
-                    expander = CubicExpansion(feature_information[key]["n_knots"])
-                    encoded_feature = expander.expand(
-                        value, training_dataframe[key], training_dataframe[target]
+                    expander = CubicExpansion(feature_information[key]["n_knots"][0])
+                    encoded_feature = expander.expand(value)
+                elif feature_information[key]["Network"] == "PolynomialSplineNet":
+                    expander = PolynomialExpansion(
+                        feature_information[key]["degree"][0]
                     )
+                    encoded_feature = expander.expand(value)
                 else:
                     normalizer = tf.keras.layers.Normalization
                     norm = normalizer()
@@ -255,6 +258,7 @@ class CubicExpansion:
         based on a set of knots xk (ascending order). Pretty much directly from p.201 in Wood (2017)
         :param xk: knots (for now always np.linspace(x.min(), x.max(), n_knots)
         """
+
         k = len(xk)
         h = np.diff(xk)
         h_shift_up = h.copy()[1:]
@@ -273,7 +277,7 @@ class CubicExpansion:
         S = D.T @ np.linalg.inv(B) @ D
         return F, S
 
-    def expand(self, x, train_x, train_target):
+    def expand(self, x):
         """
 
         :param x: x values to be evalutated

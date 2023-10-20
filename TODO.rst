@@ -16,13 +16,18 @@ Make FeatureNetworks easily addable for Users :exclamation:
 ***************************************************************
 
 ***************************************************************
+Make real Spline Optimization with smoothing :question:
+***************************************************************
+
+***************************************************************
 Featurenetworks to implement
 ***************************************************************
-    - Polynomial Expansion
+    - Polynomial Expansion :white_check_mark:
+    - Spline Expansions also for MLP :question:
     - Tensorproduct Expansion
     - Numerical Feature Binning: Transformer :white_check_mark:
     - Neural Decision Trees :question:
-    - RandomFourierFeatures
+    - RandomFourierFeatures :question:
 
 ***************************************************************
 Interpretability
@@ -33,7 +38,7 @@ Interpretability
 ***************************************************************
 LSS
 ***************************************************************
-    - Testing Families
+    - Testing Families :question:
     - add CRPS :question:
     - better plotting :white_check_mark:
 

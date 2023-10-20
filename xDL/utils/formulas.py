@@ -23,9 +23,19 @@ default_CubicSplineNet = {
     "Network": "CubicSplineNet",
     "n_knots": 15,
     "activation": "linear",
-    "l1_regularizer": 0.005,
-    "l2_regularizer": 0.005,
-    "l2_activity_regularizer": 0.005,
+    "l1_regularizer": 0.0005,
+    "l2_regularizer": 0.0005,
+    "l2_activity_regularizer": 0.0005,
+}
+
+
+default_PolynomialSplineNet = {
+    "Network": "CubicSplineNet",
+    "degree": 15,
+    "activation": "linear",
+    "l1_regularizer": 0.0005,
+    "l2_regularizer": 0.0005,
+    "l2_activity_regularizer": 0.0005,
 }
 
 
@@ -126,6 +136,27 @@ def extract_CubicSplineNet(input: str):
         feature_dict[key] = value
 
     merge_default_into_defined(feature_dict, default_CubicSplineNet)
+
+    return feature_list[0], convert_string_to_value(feature_dict)
+
+
+def extract_PolynomialSplineNet(input: str):
+    feature_dict = {}
+    feature_dict["Network"] = "PolynomialSplineNet"
+
+    pattern = r",(?![^\[\]]*\])"
+
+    # Split the input string using the pattern
+    feature_list = re.split(pattern, input)
+
+    # Remove leading and trailing spaces from each split part
+    feature_list = [part.strip() for part in feature_list]
+
+    for feature in feature_list[1:]:
+        key, value = feature.split("=")
+        feature_dict[key] = value
+
+    merge_default_into_defined(feature_dict, default_PolynomialSplineNet)
 
     return feature_list[0], convert_string_to_value(feature_dict)
 

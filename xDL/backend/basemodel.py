@@ -96,6 +96,7 @@ class AdditiveBaseModel(tf.keras.Model):
         Raises:
             NotImplementedError: If not implemented in the subclass.
         """
+
         FH = FormulaHandler()
         (
             feature_names,

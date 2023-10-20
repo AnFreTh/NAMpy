@@ -180,6 +180,8 @@ def CubicSplineNet(inputs, param_dict, output_dimension=1, name=None):
     weight_shift = AddWeightsLayer()
     x = weight_shift(inputs)
 
+    x = tf.keras.layers.Dense(x.shape[1], activation="relu")(x)
+
     x = tf.keras.layers.Dense(
         output_dimension,
         activation=activation,
@@ -192,7 +194,7 @@ def CubicSplineNet(inputs, param_dict, output_dimension=1, name=None):
     return model
 
 
-def PolySplineNet(inputs, param_dict, output_dimension=1, name=None):
+def PolynomialSplineNet(inputs, param_dict, output_dimension=1, name=None):
     """
     Create a Cubic Spline Neural Network.
     -> this takes a cubic basis expansion as an input and adds weights to each column, thus pseudo-adjusting the knot locations.
@@ -212,8 +214,8 @@ def PolySplineNet(inputs, param_dict, output_dimension=1, name=None):
     # Add small weights to each row except the first and last columns
 
     assert (
-        param_dict["Network"] == "PolySplineNet"
-    ), "Network-Name error. The Network name passed to the PolySplineNet is not correct. Expected 'PolySplineNet'"
+        param_dict["Network"] == "PolynomialSplineNet"
+    ), "Network-Name error. The Network name passed to the PolynomialSplineNet is not correct. Expected 'PolynomialSplineNet'"
 
     inputs = inputs[0]
     activation = param_dict["activation"]
@@ -223,6 +225,8 @@ def PolySplineNet(inputs, param_dict, output_dimension=1, name=None):
 
     weight_shift = AddWeightsLayer()
     x = weight_shift(inputs)
+
+    x = tf.keras.layers.Dense(x.shape[1], activation="relu")(x)
 
     x = tf.keras.layers.Dense(
         output_dimension,
