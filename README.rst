@@ -4,7 +4,10 @@
 
 
 
+*xDL - A python package for explainable Deep Learning*
 xDL (Explainable Deep Learning) aims at training, analyzing and comparing inherently interpretable Deep Learning Models. The focus lies on additive models as well as distributional regression models.
+xDL provides implementations of several (mostly additive) interpretable deep neural networks and the corresponding visualizations.
+Through the simple formula like interface it makes creating and analyzing interpretable deep learning models simple.
 It uses the tensorflow.keras framework and thus offers the complete flexibility of any Keras Model.
 It is adjustable in a way that every user can easily write their own shape function / feature network.
 
@@ -17,7 +20,7 @@ It is adjustable in a way that every user can easily write their own shape funct
 ***************
 Available Models
 ***************
-
+The following models are natively available in `xDL`
 
 +---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
 | Name                                                                            | Details                                                                                         |
@@ -64,8 +67,9 @@ If you use one of these implementations, make sure to cite the right paper.
 If you implemented a model and wish to update any part of it, or do not want your model to be included in this library, please get in touch through a GitHub issue.
 
 
-Note that for FT-Transformer `(Gorishniy et al. 2021)`_ we directly implement periodic linear encodings for the numerical features `(Gorishniy et al. 2022)`_.
-For SNAMs `(Luber et al. 2023)`_ , we slightly adapt the architecture and include an additional hidden layer after the Spline Layer.
+Note that for `FT-Transformer` `(Gorishniy et al. 2021)`_ we directly use periodic linear encodings followed by a fully connected dense layer for the numerical features `(Gorishniy et al. 2022)`_.
+For `SNAMs` `(Luber et al. 2023)`_ , we slightly adapt the architecture and include an additional fully connected hidden layer after each Spline Layer.
+For `NAMs` `(Agarwal et al. 2021)`_  we set the default activation function to be a ReLU function instead of the proposed ExU activation function due to smoother and better interpretable shape functions.
 
 ***************
 Usage
@@ -77,13 +81,14 @@ All models are demonstrated in the examples folder. Generally xDL follows the Ke
 From Strings to Formulas
 ========================
 xDL offers multiple Additive Models. Thus we closely follow the R-package mgcv (Simon Wood) in model initialization.
-The general formula for an additive model follows the following notion:
+The general formula for an additive model follows the following simple notion:
 
 "y ~ feature1 + feature2 + feature1:feature2"
 
 where "~" represents which variable is the dependent variable and which variables are the predictiors. Subsequently, we can just pass the data (pd.DatFrame) with the respectively named columns to the model.
-The ":" denotes a feature interaction between the named features. Thus, all additive models can modelled over flexible features, with flexible shape functions, flexbile feature interactions.
-
+The ":" denotes a feature interaction between the named features. Thus, all additive models can be modelled over flexible features, with flexible shape functions and flexbile feature interactions.
+The data is automatically preprocessed according to the chosen shape function and datatype. The individual preprocessing can either be chosen flexibly (e.g. periodic linear encoding, one-hot, etc.) or done individually before initializing. 
+Make sure to not have multiple preprocessing steps applied when using already preprocessed input features.
 
 
 Initialize a model
@@ -116,6 +121,7 @@ Initialize the model:
         )
 
 
+For a simple NAM, we use MLP shape functions for each feature. We use `xDLs` default architecture for each MLP.
 MLP(Latitude):MLP(Longitude) defines a pairwise feature interaction between Latitude and Longitude
 
 Train a model
@@ -142,11 +148,11 @@ You can simply evaluate your model using the Keras API:
     print("Test Loss:", loss)
 
 If you have a separate test dataset, you can use the model to preprocess your dataset and evaluate. 
-Note that your test_dataset should have the same form that you passed your training dataset to the model.
+Note that your test_df should have the same form that you passed your training dataset to the model.
 
 .. code-block:: python
 
-    test_dataset = model._get_dataset(test_dataset)
+    test_dataset = model._get_dataset(test_df)
     loss = nam.evaluate(test_dataset)
     print("Test Loss:", loss)
 
@@ -271,4 +277,4 @@ You should also lose the prefix.
         return model
 
 
-ANd just like that you have defined your own shape function that you can use in one of the additive models in xDL.
+And just like that you have defined your own shape function that you can use in one of the additive models in xDL.
