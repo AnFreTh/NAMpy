@@ -11,9 +11,6 @@ Models to implement:
     - QNAM :question:
     - BNAM :question:
 
-***************************************************************
-Make FeatureNetworks easily addable for Users :exclamation:
-***************************************************************
 
 ***************************************************************
 Make real Spline Optimization with smoothing :question:
@@ -29,11 +26,6 @@ Featurenetworks to implement
     - Neural Decision Trees :question:
     - RandomFourierFeatures :question:
 
-***************************************************************
-Interpretability
-***************************************************************
-    - Approx Fisher for SNAM :question:
-    - Pseudo Significance - LOO Distribution Shift :white_check_mark:
 
 ***************************************************************
 LSS
