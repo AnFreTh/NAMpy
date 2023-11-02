@@ -1,4 +1,4 @@
-from xDL.utils.data_utils import *
+from xDL.utils.data_utils import DataModule
 from xDL.utils.formulas import FormulaHandler
 from keras.callbacks import *
 from scipy.stats import ttest_ind
@@ -7,6 +7,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy import stats
+import tensorflow as tf
 
 
 class AdditiveBaseModel(tf.keras.Model):
@@ -17,10 +18,10 @@ class AdditiveBaseModel(tf.keras.Model):
         feature_dropout,
         val_data=None,
         batch_size=1024,
-        random_state=101,
         val_split=0.2,
+        test_split=None,
+        shuffle=True,
         binning_task="regression",
-        num_encoding="normalized",
         n_bins_num=None,
         **kwargs,
     ):
@@ -68,20 +69,25 @@ class AdditiveBaseModel(tf.keras.Model):
         self.data = data
         self.feature_dropout = feature_dropout
         self.binning_task = binning_task
-        self.num_encoding = num_encoding
         self.n_bins = n_bins_num
 
         (
             self.training_dataset,
             self.validation_dataset,
+            self.test_dataset,
             self.plotting_dataset,
             self.named_feature_nets,
             self.y,
             self.feature_names,
             self.fit_intercept,
-        ) = self._get_model_specifications(batch_size=batch_size, val_split=val_split)
+        ) = self._get_model_specifications(
+            batch_size=batch_size,
+            val_split=val_split,
+            test_split=test_split,
+            shuffle=shuffle,
+        )
 
-    def _get_model_specifications(self, batch_size, val_split):
+    def _get_model_specifications(self, batch_size, val_split, test_split, shuffle):
         """
         Get model specifications such as datasets, feature networks, and other attributes.
 
@@ -144,52 +150,28 @@ class AdditiveBaseModel(tf.keras.Model):
         elif target_name in self.CAT_FEATURES:
             self.CAT_FEATURES.remove(target_name)
 
-        if self.val_data is None:
-            train_dataset, val_dataset = df_to_dataset(
-                self.data,
-                self.data,
-                self.input_dict,
-                target_name,
-                batch_size=batch_size,
-                validation_split=val_split,
-                feature_information=self.feature_information,
-                task=self.binning_task,
-            )
-        else:
-            train_dataset = df_to_dataset(
-                self.data,
-                self.data,
-                self.input_dict,
-                target_name,
-                batch_size=batch_size,
-                validation_split=None,
-                feature_information=self.feature_information,
-                task=self.binning_task,
-            )
-
-            val_dataset = df_to_dataset(
-                self.val_data,
-                self.data,
-                self.input_dict,
-                target_name,
-                batch_size=batch_size,
-                validation_split=None,
-                feature_information=self.feature_information,
-                task=self.binning_task,
-            )
-
-        self.plotting_data = generate_plotting_data(self.data, 1000)
-
-        plotting_dataset = df_to_dataset(
-            self.plotting_data,
+        self.datamodule = DataModule(
             self.data,
-            self.input_dict,
-            target_name,
-            batch_size=batch_size,
-            shuffle=False,
-            feature_information=self.feature_information,
-            task=self.binning_task,
+            input_dict={},
+            feature_dictionary=self.feature_information,
+            target_name=target_name,
         )
+
+        self.datamodule.preprocess(
+            validation_split=val_split,
+            test_split=test_split,
+            batch_size=batch_size,
+            shuffle=shuffle,
+        )
+
+        if self.val_data is None:
+            val_dataset = self.datamodule.validation_dataset
+        else:
+            val_dataset = self.val_data
+        train_dataset = self.datamodule.training_dataset
+        test_dataset = self.datamodule.test_dataset
+
+        plotting_dataset, self.plotting_data = self.datamodule._plotting_data()
 
         self.inputs = {}
 
@@ -213,6 +195,7 @@ class AdditiveBaseModel(tf.keras.Model):
         return (
             train_dataset,
             val_dataset,
+            test_dataset,
             plotting_dataset,
             named_feature_nets,
             target_name,
@@ -237,18 +220,20 @@ class AdditiveBaseModel(tf.keras.Model):
             NotImplementedError: If not implemented in the subclass.
         """
 
-        dataset = df_to_dataset(
+        datamodule = DataModule(
             data,
-            self.data,
-            self.input_dict,
-            self.y,
+            input_dict={},
+            feature_dictionary=self.feature_information,
+            target_name=self.y,
+        )
+        datamodule.preprocess(
+            validation_split=None,
+            test_split=None,
             batch_size=batch_size,
             shuffle=shuffle,
-            feature_information=self.feature_information,
-            task=self.binning_task,
         )
 
-        return dataset
+        return datamodule.training_dataset
 
     def _build_model(self):
         """
@@ -423,7 +408,9 @@ class BaseModel(tf.keras.Model):
         dropout,
         val_data=None,
         batch_size=1024,
-        random_state=101,
+        val_split=0.2,
+        test_split=None,
+        shuffle=True,
         binning_task="regression",
         num_encoding="normalized",
         n_bins_num=None,
@@ -446,12 +433,16 @@ class BaseModel(tf.keras.Model):
         (
             self.training_dataset,
             self.validation_dataset,
+            self.test_dataset,
             self.y,
         ) = self._get_model_specifications(
-            batch_size=batch_size, val_split=0.2, random_state=random_state
+            batch_size=batch_size,
+            val_split=val_split,
+            test_split=test_split,
+            shuffle=shuffle,
         )
 
-    def _get_model_specifications(self, batch_size, val_split, random_state):
+    def _get_model_specifications(self, batch_size, val_split, test_split, shuffle):
         """
         Get model specifications such as datasets, feature networks, and other attributes.
 
@@ -511,39 +502,25 @@ class BaseModel(tf.keras.Model):
                 self.feature_information[name]["encoding"] = self.num_encoding
                 self.feature_information[name]["n_bins"] = self.n_bins_num
 
-        if self.val_data is None:
-            train_dataset, val_dataset = df_to_dataset(
-                self.data,
-                self.data,
-                self.input_dict,
-                target_name,
-                batch_size=batch_size,
-                validation_split=val_split,
-                feature_information=self.feature_information,
-                task=self.binning_task,
-            )
-        else:
-            train_dataset = df_to_dataset(
-                self.data,
-                self.data,
-                self.input_dict,
-                target_name,
-                batch_size=batch_size,
-                validation_split=None,
-                feature_information=self.feature_information,
-                task=self.binning_task,
-            )
+        self.datamodule = DataModule(
+            self.data,
+            input_dict={},
+            feature_dictionary=self.feature_information,
+            target_name=target_name,
+        )
+        self.datamodule.preprocess(
+            validation_split=val_split,
+            test_split=test_split,
+            batch_size=batch_size,
+            shuffle=shuffle,
+        )
 
-            val_dataset = df_to_dataset(
-                self.val_data,
-                self.data,
-                self.input_dict,
-                target_name,
-                batch_size=batch_size,
-                validation_split=None,
-                feature_information=self.feature_information,
-                task=self.binning_task,
-            )
+        if self.val_data is None:
+            val_dataset = self.datamodule.validation_dataset
+        else:
+            val_dataset = self.val_data
+        train_dataset = self.datamodule.training_dataset
+        test_dataset = self.datamodule.test_dataset
 
         self.inputs = {}
 
@@ -567,6 +544,7 @@ class BaseModel(tf.keras.Model):
         return (
             train_dataset,
             val_dataset,
+            test_dataset,
             target_name,
         )
 
@@ -587,18 +565,20 @@ class BaseModel(tf.keras.Model):
             NotImplementedError: If not implemented in the subclass.
         """
 
-        dataset = df_to_dataset(
+        datamodule = DataModule(
             data,
-            self.data,
-            self.input_dict,
-            self.y,
+            input_dict={},
+            feature_dictionary=self.feature_information,
+            target_name=self.y,
+        )
+        datamodule.preprocess(
+            validation_split=None,
+            test_split=None,
             batch_size=batch_size,
             shuffle=shuffle,
-            feature_information=self.feature_information,
-            task=self.binning_task,
         )
 
-        return dataset
+        return datamodule.training_dataset
 
     def get_significance(self):
         """

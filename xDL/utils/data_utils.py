@@ -1,132 +1,375 @@
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
 import pandas as pd
-import bisect
-import re
-from sklearn.tree import _tree
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-from keras.utils import to_categorical
+from .preprocessing_utils._periodic_linear_encoding import *
+from .preprocessing_utils._cubic_expansion import *
+from .preprocessing_utils._polynomial_expansion import *
+from .preprocessing_utils._minmax import *
+from .preprocessing_utils._helper import *
+import numbers
 
 
-def df_to_dataset(
-    dataframe: pd.DataFrame,
-    training_dataframe: pd.DataFrame,
-    input_dict: dict,
-    target: str = None,
-    shuffle: bool = True,
-    batch_size: int = 1024,
-    validation_split=None,
-    feature_information: dict = {},
-    task="regression",
-):
+class Preprocessor(tf.keras.layers.Layer):
+
     """
-    Converts a Pandas DataFrame into a TensorFlow Dataset.
+    A custom TensorFlow Keras layer for preprocessing features in a dataset.
 
     Args:
-        dataframe (pd.DataFrame): Input data as a Pandas DataFrame.
-        input_dict (dict): A dictionary specifying the network type for each feature.
-        target (str, optional): Name of the target column in the DataFrame (default is None).
-        shuffle (bool, optional): Whether to shuffle the dataset (default is True).
-        batch_size (int, optional): Batch size for the dataset (default is 1024).
-        validation_split (float, optional): Fraction of data to use for validation (default is None).
-        output_mode (str, optional): Output mode for encoding categorical data (default is "one_hot").
+    feature_preprocessing_dict (dict): A dictionary specifying the preprocessing details for each feature.
+    target_name (str): The name of the target feature.
+    task (str, optional): The machine learning task type, e.g., "regression" or "classification". Default is "regression".
+    tree_params (dict, optional): Parameters for tree-based preprocessing methods. Default is an empty dictionary.
 
-    Returns:
-        tf.data.Dataset: A TensorFlow Dataset.
+    Attributes:
+    feature_preprocessing_dict (dict): A dictionary specifying the preprocessing details for each feature.
+    target_name (str): The name of the target feature.
+    task (str): The machine learning task type.
+    preprocessors (dict): A dictionary containing preprocessing layers for each feature.
+    tree_params (dict): Parameters for tree-based preprocessing methods.
+
+    Methods:
+    call(data, target):
+        Preprocess the input data according to the specified preprocessing methods.
+
+    Example usage:
+    preprocessor = Preprocessor(feature_preprocessing_dict, target_name, task="regression")
+    preprocessed_data = preprocessor(data, target)
+
+    Raises:
+    ValueError: If the data types and preprocessing methods are not compatible.
+
     """
 
-    df = dataframe.copy()
-    if target:
-        labels = df.pop(target)
-        dataset = {}
-        for key, value in df.items():
-            if (
-                feature_information[key]["encoding"] == "int"
-                or feature_information[key]["encoding"] == "one_hot"
-                or feature_information[key]["encoding"] == "PLE"
-            ):
-                if value.dtype == object:
-                    value = np.expand_dims(value, 1)
-                    lookup_class = tf.keras.layers.StringLookup
-                    # Create a lookup layer which will turn strings into integer indices
-                    lookup = lookup_class(
-                        output_mode=feature_information[key]["encoding"]
-                    )
-                    # Learn the set of possible string values and assign them a fixed integer index
-                    lookup.adapt(training_dataframe[key])
-                    # Turn the string input into integer indices
-                    encoded_feature = lookup(value)
+    def __init__(
+        self,
+        feature_preprocessing_dict: dict,
+        target_name: str,
+        task: str = "regression",
+        tree_params: dict = {},
+    ):
+        """
+        Initialize the Preprocessor instance.
 
-                elif value.dtype == float:
-                    encoded_feature = numerical_feature_binning(
-                        training_dataframe,
-                        key,
-                        value,
-                        labels,
-                        target,
-                        n_bins=feature_information[key]["n_bins"],
-                        task=task,
-                        encoding_type=feature_information[key]["encoding"],
-                    )
+        Args:
+        feature_preprocessing_dict (dict): A dictionary specifying the preprocessing details for each feature.
+        target_name (str): The name of the target feature.
+        task (str, optional): The machine learning task type, e.g., "regression" or "classification". Default is "regression".
+        tree_params (dict, optional): Parameters for tree-based preprocessing methods. Default is an empty dictionary.
+        """
 
-                elif np.issubdtype(value.dtype, np.integer):
-                    if feature_information[key]["encoding"] == "one_hot":
-                        encoded_feature = to_categorical(value)
-                    else:
-                        encoded_feature = np.expand_dims(value, 1) + 1
+        super(Preprocessor, self).__init__()
+        self.feature_preprocessing_dict = feature_preprocessing_dict
+        self.target_name = target_name
+        self.task = task
+        self.preprocessors = {}
+        self.tree_params = tree_params
 
-            elif feature_information[key]["encoding"] == "normalized":
-                if feature_information[key]["Network"] == "CubicSplineNet":
-                    expander = CubicExpansion(feature_information[key]["n_knots"][0])
-                    encoded_feature = expander.expand(value)
-                elif feature_information[key]["Network"] == "PolynomialSplineNet":
-                    expander = PolynomialExpansion(
-                        feature_information[key]["degree"][0]
-                    )
-                    encoded_feature = expander.expand(value)
+        for key, feature in self.feature_preprocessing_dict.items():
+            if feature["encoding"] == "normalized":
+                if feature["Network"] == "CubicSplineNet":
+                    self.preprocessors[key] = CubicExpansion(feature["n_knots"][0])
+                elif feature["Network"] == "PolynomialSplineNet":
+                    self.preprocessors[key] = PolynomialExpansion(feature["degree"][0])
                 else:
-                    normalizer = tf.keras.layers.Normalization
-                    norm = normalizer()
-                    norm.adapt(training_dataframe[key])
-                    encoded_feature = tf.transpose(norm(value))
+                    self.preprocessors[key] = tf.keras.layers.Normalization()
 
-            else:
-                raise ValueError(
-                    f"the datatype for variable {key}: {value.dtype} is not supported"
+            elif feature["encoding"] == "min_max":
+                self.preprocessors[key] = MinMaxEncodingLayer()
+
+            elif feature["encoding"] == "hashing":
+                self.preprocessors[key] = tf.keras.layers.Hashing(
+                    num_bins=feature["n_bins"]
                 )
 
-            dataset[key] = np.array(encoded_feature)  #
+            elif feature["encoding"] == "discretized":
+                self.preprocessors[key] = tf.keras.layers.Discretization(
+                    num_bins=feature["n_bins"]
+                )
 
-        dataset = tf.data.Dataset.from_tensor_slices((dict(dataset), labels))
-    else:
+            elif feature["encoding"] == "int":
+                if feature["dtype"] == object:
+                    self.preprocessors[key] = tf.keras.layers.StringLookup(
+                        output_mode="int"
+                    )
+                elif feature["dtype"] == float:
+                    self.preprocessors[key] = IntegerBinning(
+                        n_bins=feature["n_bins"],
+                        task=self.task,
+                        tree_params=self.tree_params,
+                    )
+                elif np.issubdtype(feature["dtype"], np.integer):
+                    self.preprocessors[key] = NoPreprocessingLayer(type="int")
+
+            elif feature["encoding"] == "one_hot":
+                if feature["dtype"] == object:
+                    self.preprocessors[key] = tf.keras.layers.StringLookup(
+                        output_mode="one_hot"
+                    )
+                elif feature["dtype"] == float:
+                    self.preprocessors[key] = OneHotBinning(
+                        n_bins=feature["n_bins"],
+                        task=self.task,
+                        tree_params=self.tree_params,
+                    )
+                elif np.issubdtype(feature["dtype"], np.integer):
+                    self.preprocessors[key] = NoPreprocessingLayer(type="one_hot")
+
+    def call(self, data, target):
+        """
+        Preprocess the input data according to the specified preprocessing methods.
+
+        Args:
+        data (dict): A dictionary containing input features.
+        target: The target feature.
+
+        Returns:
+        dict: A dictionary containing the preprocessed features.
+
+        Raises:
+        ValueError: If the data types and preprocessing methods are not compatible.
+        """
+
         dataset = {}
-        for key, value in df.items():
-            dataset[key] = np.array(value)[:, tf.newaxis]
+        print("--- Preprocessing ---")
+        for key, feature in tqdm(data.items()):
+            if key == self.target_name:
+                continue
+            try:
+                self.preprocessors[key].adapt(feature)
+            except TypeError:
+                try:
+                    self.preprocessors[key].adapt(feature, target)
+                except:
+                    raise ValueError(
+                        "the datatypes and preprocessing are not functional together"
+                    )
 
-        dataset = tf.data.Dataset.from_tensor_slices(dict(dataset))
+            encoded_feature = self.preprocessors[key](feature)
+            if encoded_feature.shape[0] == 1:
+                encoded_feature = tf.transpose(encoded_feature)
+            dataset[key] = np.array(encoded_feature)
 
-    if shuffle:
-        dataset = dataset.shuffle(buffer_size=len(dataframe))
-
-    # Calculate the split point for validation data
-    if validation_split:
-        num_samples = len(dataframe)
-        num_validation_samples = int(validation_split * num_samples)
-
-        validation_dataset = dataset.take(num_validation_samples)
-        training_dataset = dataset.skip(num_validation_samples)
-
-        # Batch and prefetch both datasets
-        validation_dataset = validation_dataset.batch(batch_size).prefetch(batch_size)
-        training_dataset = training_dataset.batch(batch_size).prefetch(batch_size)
-
-        return training_dataset, validation_dataset
-
-    else:
-        dataset = dataset.batch(batch_size)
-        dataset = dataset.prefetch(batch_size)
         return dataset
+
+
+class DataModule:
+    """
+    A class for managing and preprocessing data for machine learning tasks.
+
+    Args:
+    data (pandas.DataFrame): The input data as a pandas DataFrame.
+    input_dict (dict): A dictionary specifying the preprocessing details for each feature.
+    target_name (str): The name of the target feature.
+    feature_dictionary (dict, optional): A dictionary specifying additional information about features. Default is an empty dictionary.
+    task (str, optional): The machine learning task type, e.g., "regression" or "classification". Default is "regression".
+    tree_params (dict, optional): Parameters for tree-based preprocessing methods. Default is an empty dictionary.
+
+    Attributes:
+    data (pandas.DataFrame): The input data as a pandas DataFrame.
+    labels (pandas.Series): The target labels.
+    input_dict (dict): A dictionary specifying the preprocessing details for each feature.
+    task (str): The machine learning task type.
+    target_name (str): The name of the target feature.
+    feature_dictionary (dict): A dictionary specifying additional information about features.
+    tree_params (dict): Parameters for tree-based preprocessing methods.
+    preprocessing_called (bool): A flag indicating whether the preprocessing has been performed.
+    encoder (Preprocessor): A preprocessing encoder for the data.
+
+    Methods:
+    preprocess(validation_split=0.2, test_split=None, batch_size=1024, shuffle=True):
+        Perform data preprocessing and create TensorFlow datasets for training, validation, and testing.
+
+    Raises:
+    AssertionError: If an unsupported data type or encoding is encountered.
+    RuntimeError: If preprocessing functions are called before the preprocessing is performed.
+
+    Example usage:
+    data_module = DataModule(data, input_dict, target_name, task="regression")
+    data_module.preprocess(validation_split=0.2)
+    """
+
+    def __init__(
+        self,
+        data,
+        input_dict,
+        target_name,
+        feature_dictionary={},
+        task="regression",
+        tree_params={},
+    ):
+        """
+        Initialize the DataModule with input data and preprocessing information.
+
+        Args:
+        data (pandas.DataFrame): The input data as a pandas DataFrame.
+        input_dict (dict): A dictionary specifying the preprocessing details for each feature.
+        target_name (str): The name of the target feature.
+        feature_dictionary (dict, optional): A dictionary specifying additional information about features. Default is an empty dictionary.
+        task (str, optional): The machine learning task type, e.g., "regression" or "classification". Default is "regression".
+        tree_params (dict, optional): Parameters for tree-based preprocessing methods. Default is an empty dictionary.
+        """
+
+        # Common data types including subtypes
+        common_datatypes = (int, float, str, bool, list, dict, tuple, object)
+        for column, dtype in data.dtypes.items():
+            if column == target_name:
+                continue
+            # Extract the main data type without the subtype
+            main_dtype = np.dtype(dtype).type
+
+            if any(
+                issubclass(main_dtype, dt)
+                or (isinstance(main_dtype, numbers.Integral) and issubclass(int, dt))
+                or (isinstance(main_dtype, numbers.Real) and issubclass(float, dt))
+                for dt in common_datatypes
+            ):
+                continue
+            else:
+                raise AssertionError(
+                    f"Column '{column}' has an unsupported datatype: {dtype}"
+                )
+
+        self.data = data.copy()
+        if target_name:
+            self.labels = self.data.pop(target_name)
+
+        # check for valid encoding
+        supported_encodings = [
+            None,
+            "int",
+            "one_hot",
+            "PLE",
+            "normalized",
+            "min_max",
+            "hashing",
+            "discretized",
+        ]
+        for key in feature_dictionary.keys():
+            if key == target_name:
+                continue
+            if feature_dictionary[key]["encoding"] not in supported_encodings:
+                raise AssertionError(
+                    f"encoding {feature_dictionary[key]['encoding']} for variable {key} is not supported"
+                )
+
+        self.input_dict = input_dict
+        self.task = task
+        self.data = data
+        self.target_name = target_name
+        self.feature_dictionary = feature_dictionary
+        self.tree_params = tree_params
+        self.preprocessing_called = False
+
+        self.encoder = Preprocessor(feature_dictionary, target_name, task, tree_params)
+
+    def _get_info(self):
+        """
+        Collect information about the data module and its preprocessing.
+
+        This method updates the 'info' attribute with relevant information.
+        """
+        self.info = {}
+        self.info["datapoints"] = len(self.data)
+        self.info["preprocessors"] = self.encoder.preprocessors
+
+    def _plotting_data(self):
+        """
+        Generate and preprocess data for visualization.
+
+        Returns:
+        tf.data.Dataset: A dataset containing preprocessed data for visualization.
+        dict: Raw data used for visualization.
+
+        Raises:
+        RuntimeError: If called before preprocessing.
+        """
+
+        if not self.preprocessing_called:
+            raise RuntimeError(
+                "call_first_function must be called before call_second_function"
+            )
+
+        plotting_data = generate_plotting_data(self.data, 1000)
+
+        dataset = {}
+        plotting_labels = plotting_data.pop(self.target_name)
+        for key, feature in tqdm(plotting_data.items()):
+            if key == self.target_name:
+                continue
+
+            encoded_feature = self.encoder.preprocessors[key](feature)
+
+            if encoded_feature.shape[0] == 1:
+                encoded_feature = tf.transpose(encoded_feature)
+            dataset[key] = np.array(encoded_feature)
+
+        self.plotting_dataset = tf.data.Dataset.from_tensor_slices(
+            (dict(dataset), plotting_labels)
+        )
+
+        self.plotting_dataset = self.plotting_dataset.batch(1000)
+        self.plotting_dataset = self.plotting_dataset.prefetch(1000)
+
+        return self.plotting_dataset, plotting_data
+
+    def preprocess(
+        self, validation_split=0.2, test_split=None, batch_size=1024, shuffle=True
+    ):
+        """
+        Perform data preprocessing and create TensorFlow datasets for training, validation, and testing.
+
+        Args:
+        validation_split (float, optional): The fraction of data to use for validation. Default is 0.2.
+        test_split (float, optional): The fraction of data to use for testing. Default is None.
+        batch_size (int, optional): Batch size for training and validation datasets. Default is 1024.
+        shuffle (bool, optional): Whether to shuffle the data. Default is True.
+
+        Raises:
+        RuntimeError: If preprocessing functions are called before the preprocessing is performed.
+        """
+        self.preprocessing_called = True
+        self.validation_split = validation_split
+        self.test_split = test_split
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+
+        self.dataset = self.encoder(self.data, self.labels)
+        self.dataset = tf.data.Dataset.from_tensor_slices(
+            (dict(self.dataset), self.labels)
+        )
+
+        if self.shuffle:
+            self.dataset = self.dataset.shuffle(buffer_size=len(self.data))
+
+        # Calculate the split point for validation data
+        if validation_split:
+            num_samples = len(self.data)
+            num_validation_samples = int(validation_split * num_samples)
+
+            validation_dataset = self.dataset.take(num_validation_samples)
+            training_dataset = self.dataset.skip(num_validation_samples)
+            if test_split:
+                num_test_samples = int(test_split * num_samples)
+                test_dataset = self.dataset.take(num_test_samples)
+                training_dataset = self.dataset.skip(num_test_samples)
+                self.test_dataset = test_dataset.batch(batch_size).prefetch(batch_size)
+
+            else:
+                self.test_dataset = None
+
+            # Batch and prefetch both datasets
+            self.validation_dataset = validation_dataset.batch(batch_size).prefetch(
+                batch_size
+            )
+            self.training_dataset = training_dataset.batch(batch_size).prefetch(
+                batch_size
+            )
+
+        else:
+            self.training_dataset = self.training_dataset.batch(batch_size)
+            self.training_dataset = self.training_dataset.prefetch(batch_size)
+            self.validation_dataset = None
+            self.test_dataset = None
 
 
 def generate_plotting_data(df, num_samples, new_data={}):
@@ -173,337 +416,3 @@ def generate_plotting_data(df, num_samples, new_data={}):
             print(f"Unsupported column type: {column}")
 
     return pd.DataFrame(new_data)
-
-
-# min max preprocessing keras layer
-class MinMaxEncodingLayer(tf.keras.layers.Layer):
-    """
-    Custom Keras layer for min-max scaling of input data.
-
-    This layer scales input values to the range [-1, 1] using min-max scaling.
-
-    Args:
-        min_value (float): Minimum value for scaling.
-        max_value (float): Maximum value for scaling.
-
-    Returns:
-        tf.Tensor: Scaled tensor in the range [-1, 1].
-
-    Example:
-        min_max_layer = MinMaxEncodingLayer(min_value=0, max_value=1)
-        scaled_data = min_max_layer(inputs)
-    """
-
-    def __init__(self, min_value, max_value, **kwargs):
-        super(MinMaxEncodingLayer, self).__init__(**kwargs)
-        self.min_value = min_value
-        self.max_value = max_value
-
-    def call(self, inputs):
-        # Apply min-max scaling to the range [-1, 1]
-        encoded = 2 * (inputs - self.min_value) / (self.max_value - self.min_value) - 1
-        return encoded
-
-    def get_config(self):
-        config = super(MinMaxEncodingLayer, self).get_config()
-        config.update({"min_value": self.min_value, "max_value": self.max_value})
-        return config
-
-
-class PolynomialExpansion:
-    """
-    Polynomial expansion utility for feature transformation.
-
-    This class performs polynomial expansion of input features up to a specified degree.
-
-    Args:
-        degree (int): Degree of polynomial expansion.
-
-    Returns:
-        np.ndarray: Array containing expanded polynomial features.
-
-    Example:
-        poly_expander = PolynomialExpansion(degree=2)
-        expanded_features = poly_expander.expand(inputs)
-    """
-
-    def __init__(self, degree, **kwargs):
-        super(PolynomialExpansion, self).__init__(**kwargs)
-        self.degree = degree
-
-    def expand(self, inputs):
-        # Assuming inputs is a 2D tensor of shape (batch_size, input_dim)
-
-        # Expand the polynomial terms
-        polynomial_terms = []
-
-        for d in range(1, self.degree + 1):
-            expanded_term = inputs**d
-            polynomial_terms.append(expanded_term)
-
-        # Concatenate the polynomial terms along the feature dimension
-        expanded_features = np.stack(polynomial_terms, 1)
-
-        return expanded_features
-
-
-class CubicExpansion:
-    def __init__(self, num_knots, **kwargs):
-        super(CubicExpansion, self).__init__(**kwargs)
-        self.num_knots = num_knots
-
-    def get_FS(self, xk):
-        """
-        Create matrix F required to build the spline base and the penalizing matrix S,
-        based on a set of knots xk (ascending order). Pretty much directly from p.201 in Wood (2017)
-        :param xk: knots (for now always np.linspace(x.min(), x.max(), n_knots)
-        """
-
-        k = len(xk)
-        h = np.diff(xk)
-        h_shift_up = h.copy()[1:]
-
-        D = np.zeros((k - 2, k))
-        np.fill_diagonal(D, 1 / h[: k - 2])
-        np.fill_diagonal(D[:, 1:], (-1 / h[: k - 2] - 1 / h_shift_up))
-        np.fill_diagonal(D[:, 2:], 1 / h_shift_up)
-
-        B = np.zeros((k - 2, k - 2))
-        np.fill_diagonal(B, (h[: k - 2] + h_shift_up) / 3)
-        np.fill_diagonal(B[:, 1:], h_shift_up[k - 3] / 6)
-        np.fill_diagonal(B[1:, :], h_shift_up[k - 3] / 6)
-        F_minus = np.linalg.inv(B) @ D
-        F = np.vstack([np.zeros(k), F_minus, np.zeros(k)])
-        S = D.T @ np.linalg.inv(B) @ D
-        return F, S
-
-    def expand(self, x):
-        """
-
-        :param x: x values to be evalutated
-        :param n_knots: number of knots
-        :return:
-        """
-
-        # xk = get_optimal_knots(train_x, train_target, n_bins=self.num_knots)
-        xk = np.linspace(x.min(), x.max(), self.num_knots)
-
-        # xk.append(train_x.min())
-        # xk.append(train_x.max())
-        # xk = np.sort(list(set(xk)))
-
-        n = len(x)
-        k = len(xk)
-        F, S = self.get_FS(xk)
-        base = np.zeros((n, k))
-        for i in range(0, len(x)):
-            # find interval in which x[i] lies
-            # and evaluate basis function from p.201 in Wood (2017)
-            j = bisect.bisect_left(xk, x[i])
-            x_j = xk[j - 1]
-            x_j1 = xk[j]
-            h = x_j1 - x_j
-            a_jm = (x_j1 - x[i]) / h
-            a_jp = (x[i] - x_j) / h
-            c_jm = ((x_j1 - x[i]) ** 3 / h - h * (x_j1 - x[i])) / 6
-            c_jp = ((x[i] - x_j) ** 3 / h - h * (x[i] - x_j)) / 6
-            base[i, :] = c_jm * F[j - 1, :] + c_jp * F[j, :]
-            base[i, j - 1] += a_jm
-            base[i, j] += a_jp
-        return base
-
-
-def tree_to_code(tree, feature_names):
-    """
-    Convert a scikit-learn decision tree into a list of conditions.
-
-    Args:
-        tree (sklearn.tree.DecisionTreeRegressor or sklearn.tree.DecisionTreeClassifier):
-            The decision tree model to be converted.
-        feature_names (list of str): The names of the features used in the tree.
-        Y (array-like): The target values associated with the tree.
-
-    Returns:
-        list of str: A list of conditions representing the decision tree paths.
-
-    Example:
-        # Convert a decision tree into a list of conditions
-        tree_conditions = tree_to_code(tree_model, feature_names, target_values)
-    """
-
-    tree_ = tree.tree_
-    feature_name = [
-        feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
-        for i in tree_.feature
-    ]
-    pathto = dict()
-    my_list = []
-
-    global k
-    k = 0
-
-    def recurse(node, depth, parent):
-        global k
-        indent = "  " * depth
-
-        if tree_.feature[node] != _tree.TREE_UNDEFINED:
-            # name = df_name + "[" + "'" + feature_name[node]+ "'" + "]"
-            name = feature_name[node]
-            threshold = tree_.threshold[node]
-            s = "{} <= {} ".format(name, threshold, node)
-            if node == 0:
-                pathto[node] = "(" + s + ")"
-            else:
-                pathto[node] = "(" + pathto[parent] + ")" + " & " + "(" + s + ")"
-
-            recurse(tree_.children_left[node], depth + 1, node)
-            s = "{} > {}".format(name, threshold)
-            if node == 0:
-                pathto[node] = s
-            else:
-                pathto[node] = "(" + pathto[parent] + ")" + " & " + "(" + s + ")"
-            recurse(tree_.children_right[node], depth + 1, node)
-        else:
-            k = k + 1
-            my_list.append(pathto[parent])
-            # print(k,')',pathto[parent], tree_.value[node])
-
-    recurse(0, 1, 0)
-
-    return my_list
-
-
-def numerical_feature_binning(
-    training_dataframe,
-    feature_name,
-    feature,
-    target,
-    target_name,
-    n_bins=20,
-    tree_params={},
-    task="regression",
-    encoding_type="int",
-):
-    """
-    Perform numerical feature binning using decision tree-based discretization.
-
-    Args:
-        feature (array-like): The numerical feature to be binned.
-        target (array-like): The target values associated with the feature.
-        n_bins (int, optional): The maximum number of bins. Defaults to 20.
-        tree_params (dict, optional): Additional parameters to be passed to the decision tree model.
-        task (str, optional): The machine learning task, either "regression" or "classification".
-                             Defaults to "regression".
-        encoding_type (str, optional): The type of encoding to use for the bins, either "int" for integer
-                                    encoding or "one_hot" for one-hot encoding. Defaults to "int".
-
-    Returns:
-        tf.Tensor: The binned and encoded feature as a TensorFlow tensor.
-
-    Raises:
-        ValueError: If the specified task or encoding type is not supported.
-
-    Example:
-        # Bin and encode a numerical feature for regression task.
-        binned_feature = numerical_feature_binning(
-            feature, target, n_bins=10, task="regression", encoding_type="int"
-        )
-    """
-    # adjust for min and max nodes
-    if task == "regression":
-        dt = DecisionTreeRegressor(max_leaf_nodes=n_bins, **tree_params)
-    elif task == "classification":
-        dt = DecisionTreeClassifier(max_leaf_nodes=n_bins, **tree_params)
-    else:
-        raise ValueError("This task is not supported")
-
-    dt.fit(
-        np.expand_dims(training_dataframe[feature_name], 1),
-        training_dataframe[target_name],
-    )
-
-    conditions = tree_to_code(dt, ["feature"])
-
-    result_list = []
-    for idx, cond in enumerate(conditions):
-        if encoding_type == "int" or encoding_type == "PLE":
-            result_list.append(eval(cond) * (idx + 1))
-        elif encoding_type == "one_hot":
-            result_list.append(eval(cond) * 1)
-        else:
-            raise ValueError("This encoding type is not supported")
-
-    if encoding_type == "int":
-        encoded_feature = np.expand_dims(np.sum(np.stack(result_list).T, axis=1), 1)
-        return tf.cast(tf.convert_to_tensor(encoded_feature), dtype=tf.int64)
-    elif encoding_type == "one_hot":
-        encoded_feature = np.stack(result_list).T
-
-        return tf.cast(tf.convert_to_tensor(encoded_feature), dtype=tf.int64)
-    elif encoding_type == "PLE":
-        encoded_feature = np.expand_dims(np.sum(np.stack(result_list).T, axis=1), 1)
-
-        encoded_feature = tf.cast(
-            tf.convert_to_tensor(encoded_feature) - 1, dtype=tf.int64
-        )
-
-        pattern = r"-?\d+\.\d+"  # This pattern matches integers and floats
-        # Initialize an empty list to store the extracted numbers
-        locations = []
-        # Iterate through the strings and extract numbers
-        for string in conditions:
-            matches = re.findall(pattern, string)
-            locations.extend(matches)
-
-        locations = [float(number) for number in locations]
-
-        locations = list(set(locations))
-
-        locations = locations = np.sort(locations)
-
-        ple_encoded_feature = np.zeros(
-            (len(feature), tf.reduce_max(encoded_feature).numpy() + 1)
-        )
-
-        for idx in range(len(encoded_feature)):
-            ple_encoded_feature[idx][encoded_feature[idx]] = (
-                feature[idx] - locations[(encoded_feature[idx].numpy() - 2)[0]]
-            ) / (
-                locations[(encoded_feature[idx].numpy() - 1)[0]]
-                - locations[(encoded_feature[idx].numpy() - 2)[0]]
-            )
-            ple_encoded_feature[idx, : encoded_feature[idx].numpy()[0]] = 1
-
-        if ple_encoded_feature.shape[1] == 1:
-            return tf.zeros([len(feature), n_bins])
-
-        else:
-            return tf.cast(tf.convert_to_tensor(ple_encoded_feature), dtype=tf.float32)
-
-
-def get_optimal_knots(feature, target, n_bins=20, tree_params={}, task="regression"):
-    if task == "regression":
-        dt = DecisionTreeRegressor(max_leaf_nodes=n_bins, **tree_params)
-    elif task == "classification":
-        dt = DecisionTreeClassifier(max_leaf_nodes=n_bins, **tree_params)
-    else:
-        raise ValueError("This task is not supported")
-
-    dt.fit(np.expand_dims(feature, 1), target)
-
-    conditions = tree_to_code(dt, ["feature"], target)
-
-    pattern = r"-?\d+\.\d+"  # This pattern matches integers and floats
-
-    # Initialize an empty list to store the extracted numbers
-    locations = [np.min(feature)]
-
-    # Iterate through the strings and extract numbers
-    for string in conditions:
-        matches = re.findall(pattern, string)
-        locations.extend(matches)
-    locations.append(np.max(feature))
-    # Convert the extracted numbers to floats
-    locations = [float(number) for number in locations]
-
-    return list(set(locations))
