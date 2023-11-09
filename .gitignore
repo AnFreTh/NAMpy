@@ -3,3 +3,4 @@ __pycache__/
 *.pyo
 *.json
 NATT_ablation_interaction.ipynb
+NATT_ablation.ipynb
