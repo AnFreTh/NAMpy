@@ -1,6 +1,5 @@
 import tensorflow as tf
-from xDL.backend.transformerblock import TransformerBlock
-from xDL.backend.helper_nets.layers import *
+from xDL.shapefuncs.transformerblock import TransformerBlock
 import pandas as pd
 from tensorflow.keras.layers import (
     Concatenate,
@@ -218,6 +217,7 @@ class TabTransformerEncoder(tf.keras.Model):
 
         for i, c in enumerate(self.categorical):
             cat_embedded = self.cat_embedding_layers[i](inputs[c])
+
             categorical_feature_list.append(cat_embedded)
 
         transformer_inputs = [self.embedded_concatenation(categorical_feature_list)]
