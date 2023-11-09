@@ -141,150 +141,108 @@ User-Defined Shape Functions
 
 For detailed instructions on defining custom shape functions and adding them to the model, please refer to the documentation.
 
+******************************
+Fit a Model
+******************************
 
-Initialize a model
-================
+To build and train a model in xDL, follow these steps:
 
-To build and train model, load the model and define the formula, similar to MGCV. You can set the hyperparameters directly in the formula and specify custom loss functions etc. just as you would in any other Keras model
+1. **Load the Data:**
 
-Load the Data:
+   Before you start building a model, it's essential to load and prepare your data. In this example, we'll use the California Housing dataset as a sample. The data should be organized in a Pandas DataFrame, where each column represents a feature, and the target variable is added to the DataFrame.
 
-.. code-block:: python
+   .. code-block:: python
 
-    from xDL.models.NAM import NAM
+      from xDL.models.NAM import NAM
 
-    # Load a dataset -> e.g. CA Housing
-    housing = fetch_california_housing(as_frame=True)
-    # Create a Pandas DataFrame from the dataset
-    data = pd.DataFrame(housing.data, columns=housing.feature_names)
-    # Add the target variable to the DataFrame
-    data['target'] = housing.target
+      # Load a dataset (e.g., California Housing dataset)
+      housing = fetch_california_housing(as_frame=True)
+      # Create a Pandas DataFrame from the dataset
+      data = pd.DataFrame(housing.data, columns=housing.feature_names)
+      # Add the target variable to the DataFrame
+      data['target'] = housing.target
 
+2. **Initialize the Model:**
 
-Initialize the model:
+   Once your data is loaded, you can initialize the model using the `NAM` class. The model formula follows a structure similar to MGCV. You can specify the target variable, predictor variables, and their interactions within the formula. Additionally, you can set various hyperparameters, such as feature dropout, to control the model's behavior.
 
-.. code-block:: python
+   .. code-block:: python
 
-    model = NAM(
-        "target ~  -1 + MLP(MedInc) + MLP(AveOccup) + MLP(AveBedrms) + MLP(Population)+  MLP(Latitude):MLP(Longitude) + MLP(AveRooms)", 
-        data=data, 
-        feature_dropout=0.0001
-        )
+      model = NAM(
+          "target ~  -1 + MLP(MedInc) + MLP(AveOccup) + MLP(AveBedrms) + MLP(Population) + MLP(Latitude):MLP(Longitude) + MLP(AveRooms)", 
+          data=data, 
+          feature_dropout=0.0001
+      )
 
+   For a simple Neural Additive Model (NAM), we use Multilayer Perceptron (MLP) shape functions for each feature. The expression `MLP(Latitude):MLP(Longitude)` defines a pairwise feature interaction between Latitude and Longitude.
 
-For a simple NAM, we use MLP shape functions for each feature. We use `xDLs` default architecture for each MLP.
-MLP(Latitude):MLP(Longitude) defines a pairwise feature interaction between Latitude and Longitude
+3. **Train the Model:**
 
-Train a model
-==============
+   After initializing the model, you can train it using the Keras API. This step involves specifying an optimizer, loss function, and training settings. The training dataset is used for fitting the model, and the validation dataset helps monitor its performance during training.
 
-Train the model with the Keras API:
+   .. code-block:: python
 
-.. code-block:: python
+      model.compile(optimizer=Adam(learning_rate=0.001), loss="mean_squared_error")
 
-    model.compile(optimizer=Adam(learning_rate=0.001), loss="mean_squared_error")
+      model.fit(nam.training_dataset, epochs=100, validation_data=nam.validation_dataset)
 
-    model.fit(nam.training_dataset, epochs=100, validation_data=nam.validation_dataset)
+4. **Evaluate the Model:**
 
+   Evaluating the model is a crucial step to assess its performance. You can use the Keras API to calculate various metrics, including the test loss. This information is essential for understanding how well the model generalizes to unseen data.
 
-Evaluate a model
-==============
+   .. code-block:: python
 
-You can simply evaluate your model using the Keras API:
+      loss = nam.evaluate(nam.validation_dataset)
+      print("Test Loss:", loss)
 
+   If you have a separate test dataset, you can use the model to preprocess your dataset and evaluate. Ensure that your test dataset has the same format as the training dataset passed to the model:
 
-.. code-block:: python
+   .. code-block:: python
 
-    loss = nam.evaluate(nam.validation_dataset)
-    print("Test Loss:", loss)
-
-If you have a separate test dataset, you can use the model to preprocess your dataset and evaluate. 
-Note that your test_df should have the same form that you passed your training dataset to the model.
-
-.. code-block:: python
-
-    test_dataset = model._get_dataset(test_df)
-    loss = nam.evaluate(test_dataset)
-    print("Test Loss:", loss)
+      test_dataset = model._get_dataset(test_df)
+      loss = nam.evaluate(test_dataset)
+      print("Test Loss:", loss)
 
 
-xDL offers multiple methods for visualization for interpretability.
-All models entail an analytics_plot().
+******************************
+Visualization and Interpretability
+******************************
 
-.. code-block:: python
+xDL offers multiple methods for visualization and interpretability, allowing you to gain insights into your model's behavior and feature importance.
 
-    model.analytics_plot()
+1. **Analyze the Model:**
 
+   `model.analytics_plot()` provides an overall analysis of the model's performance, including metrics, convergence, and other relevant statistics. This analysis helps you understand how well the model has learned from the data.
 
-The additive models (NAM, NAMLSS, NATT, SNAM) offer the possibitlity to plot each feature effect individually.
+   .. code-block:: python
 
-.. code-block:: python
+      model.analytics_plot()
 
-    model.plot()
+2. **Individual Feature Effects:**
 
+   For additive models (NAM, NAMLSS, NATT, SNAM), you can visualize the effect of each feature individually. This allows you to see how individual predictors contribute to the model's predictions.
 
-If you used the NAMLSS model and model all distributional parameters, model.plot() will visualize the effect of each feature on each distributional parameter.
-The models that leverage attention layers offer the possibility to visualize the attention weights with model.plot_importances(), model.plot_categorical_importances(), model.plot_heatmap_importances("category1", "category2")
+   .. code-block:: python
 
+      model.plot()
 
-Available Shape functions and Encodings
-=======================================
-xDL offers beyond MLPs multiple shape functions. The following shape functions / feature networks are available:
+3. **Distributional Parameters (NAMLSS Model):**
 
-* MLP
-    * Simple Multilayer Perceptron with flexible number of neurons, activation function, dropout etc.
-    * Can be used for (higher-order) feature interactions by adding a ":" in between
-        * MLP(feature1):MLP(feature2)
-* CubicSplineNet   
-    * Cubic Splines with equidistantly distributed n_knots
-* PolynomialSplineNet
-    * Polynomial Splines of degree n
-* ResNet
-    * Simple ResNet architecture adapted for tabular data
-* RandomFourierNet
-    * A NN with a RandomFourierLayer after the Input layer, follows the Quasi-SVM Keras Implementation
-* ConstantWeightNet
-    * Returns a constant weight (straight - horizontal prediction)  
-* LinearPredictor
-    * Similar to a linear prediction in a classical GAM. Return single layer weight multiplied with input  
-* Transformer: See the ``NATT`` modelclass
-    * Standard Attention Transformerblock 
-    * Can (and should) be used for (higher-order) feature interactions by adding a ``:`` in between
-        * Transfer(feature1):Transfer(feature2): ...
+   If you use the NAMLSS model and model all distributional parameters, `model.plot()` will visualize the effect of each feature on each distributional parameter. This is particularly useful when dealing with distributional regression.
 
+4. **Attention Weights (Models with Attention Layers):**
 
-Note, that you can implement your own shape functions by simply following the provided Guide in the example section.
-Just be aware to adequately name your shape functions and the respective python functions.
+   For models that leverage attention layers, you can visualize the attention weights, both in the context of the entire dataset and specific categorical features. These visualizations help you understand which parts of the data the model focuses on.
 
+   - `model.plot_importances()`: Visualize attention weights.
+   - `model.plot_categorical_importances()`: Visualize categorical attention weights.
+   - `model.plot_heatmap_importances("category1", "category2")`: Plot a heatmap of attention weights between specific categories.
 
-For Encodings, if conceptually possible the encodings are usable for different shape functions. 
-The following encodings are available:
+   You can choose the visualization method that best suits your model and interpretability needs.
 
-* Normalized
-    * Simple standard normalization of a continuous input feature
-* One-Hot: Standard One-hot encoding. 
-    * For categorical features standard one-hot encoding where one column is added to account for unknown values (['UNK'])
-    * For numerical features, the feature is binned, with the bin boundaries being created by a decision tree
-* Int:  Integer encoding
-    * For categorical features standard one-hot encoding where one value is added to account for unknown values (['UNK'])
-    * For numerical features, the feature is binned, with the bin boundaries being created by a decision tree
-* PLE: Periodic Linear Encodings
-    * Periodic Linear Encoding for numerical features as introduced by Gorishniy et al. 2022.
-* MinMax: Stnadard min-max encoding
-    * Only for float features
-* Cubic Expansion
-    * Classical cubic spline expansion as used in the CubicSplinenet
-* Polynomial Expansion
-    * Classical polynomial Expansion of degree n (as specified)
-* Discretized
-    * Standard discretization as done in the tf.keras.layer preprocessing layer
-* Hashing
-    * Standard feature hashing as done in the tf.keras.layer preprocessing layer
-* None: all preprocessing steps can be performed by the user before the model initialization.
-
-
+**************************
 Pseudo Significance
-=======================================
+**************************
 For the additive models, xDL computes a pseudo-feature significance where possible, by simply comparing the predictive distribution
 with the predictive distribution when omitting each feature on a permutation test basis.
 
@@ -299,50 +257,148 @@ with the predictive distribution when omitting each feature on a permutation tes
   :width: 300
   :alt: significance
 
+******************************
+Available Shape Functions and Encodings
+******************************
+
+In xDL, we provide a wide range of shape functions and encodings to cater to various data types and modeling requirements. These shape functions are designed to make your deep learning models more interpretable and flexible.
+
+**Available Shape Functions**
+
+1. **MLP (Multilayer Perceptron):**
+    - A versatile shape function that allows you to create a simple multilayer perceptron with a flexible number of neurons, activation functions, and dropout settings.
+    - Can be used for modeling (higher-order) feature interactions by adding a ":" in between, such as `MLP(feature1):MLP(feature2)`.
+
+2. **CubicSplineNet:**
+    - Utilizes cubic splines with equidistantly distributed knots for smoother function approximations.
+
+3. **PolynomialSplineNet:**
+    - Generates polynomial splines of a specified degree to capture non-linear relationships between features.
+
+4. **ResNet:**
+    - Adapts the ResNet architecture for tabular data, offering a simple yet effective solution for structured data.
+
+5. **RandomFourierNet:**
+    - Implements a neural network with a Random Fourier Layer following the Quasi-SVM Keras implementation. Useful for capturing complex non-linearities.
+
+6. **ConstantWeightNet:**
+    - Returns a constant weight, providing a straight and horizontal prediction. This can be particularly useful for certain scenarios.
+
+7. **LinearPredictor:**
+    - Similar to a linear prediction in a classical Generalized Additive Model (GAM). Returns a single-layer weight multiplied by the input feature.
+
+8. **Transformer (NATT Modelclass):**
+    - Incorporates a standard Attention Transformer block.
+    - Can (and should) be used for (higher-order) feature interactions by adding a ":" in between, like `Transfer(feature1):Transfer(feature2):...`.
+
+Please note that you can also implement your custom shape functions by following the provided guide in the example section. Ensure that you name your shape functions and the respective Python functions accordingly for seamless integration with xDL.
+
+**Available Encodings**
+
+For data preprocessing, xDL offers a variety of encodings, many of which can be applied to different shape functions. These encodings are designed to handle various data types and make it easier to process your data effectively.
+
+1. **Normalized:**
+    - Performs simple standard normalization of a continuous input feature.
+
+2. **One-Hot:**
+    - Provides standard one-hot encoding for categorical features.
+    - For numerical features, the feature is binned, with the bin boundaries created by a decision tree.
+
+3. **Int (Integer Encoding):**
+    - Offers integer encoding for categorical features.
+    - For numerical features, the feature is binned with bin boundaries determined by a decision tree.
+
+4. **PLE (Periodic Linear Encodings):**
+    - Implements periodic linear encoding for numerical features, as introduced by Gorishniy et al. in 2022.
+
+5. **MinMax:**
+    - Standard min-max encoding, suitable for float features.
+
+6. **Cubic Expansion:**
+    - Applies classical cubic spline expansion, similar to the one used in the CubicSplineNet.
+
+7. **Polynomial Expansion:**
+    - Utilizes classical polynomial expansion of a specified degree.
+
+8. **Discretized:**
+    - Performs standard discretization, similar to the tf.keras.layer preprocessing layer.
+
+9. **Hashing:**
+    - Applies standard feature hashing, similar to the tf.keras.layer preprocessing layer.
+
+10. **None:**
+    - Allows users to perform all preprocessing steps manually before model initialization, providing full control over data processing.
+
+These shape functions and encodings offer the flexibility and versatility needed to handle diverse data types and modeling scenarios. You can choose the combination that best suits your specific use case.
 
 
-**************************
+****************************
 Individual Shape Functions
-**************************
-Since xDL is built from strings to formulas to functions, you can easily write your own shape functions / feature networks.
-You should just follow the functional keras API to create your own shape functions /feature networks.
-However, you must be careful how you create your featurenets. You must always inherit from the ShapeFunction Parentclass and add 
-your created class to the ShapeFunctionRegistry before initializing your model. 
-You should define your network in a ``forward(self, inputs)`` function following the functional sequential API and just return the models output.
-Subsequently when you added your custom shapefunction to the registry, your model will be built during initialization.
+****************************
 
-.. code-block:: python
+One of the powerful features of xDL is its flexibility, allowing you to create your own custom shape functions and feature networks. This customization enables you to address specific modeling needs and incorporate your domain expertise seamlessly.
 
-    from xDL import ShapeFunctionRegistry
-    from xDL.shapefuncs.baseshapefunction import ShapeFunction
+**Creating Custom Shape Functions**
 
-    class MyCustomFunction(ShapeFunction):
+Creating custom shape functions or feature networks in xDL is a straightforward process. To do so, follow these steps:
 
-        def __init__(self, inputs, *args, **kwargs):
+1. **Inherit from the ShapeFunction Parentclass:**
 
-            super(MyCustomFunction, self).__init__(*args, **kwargs)
+   When creating your custom shape function, ensure that your class inherits from the `ShapeFunction` parent class. This parent class provides essential functionalities for integrating your custom network into the xDL framework.
 
-        def forward(self, inputs):
-            x = tf.keras.layers.Dense(self.my_hyperparam, activation=self.my_activation)(inputs)
-            x = tf.keras.layers.Dense(1, activation="linear", use_bias=False)(x)
+2. **Define the Network in a `forward(self, inputs)` Function:**
 
-            return x
+   Within your custom class, define your network within the `forward` function. You should follow the functional sequential API, similar to creating a Keras model. Construct your network by specifying layers, activation functions, and any hyperparameters.
 
-    ShapeFunctionRegistry.add_class("MyCustomFunction", MyCustomFunction)
+   For example:
 
+   .. code-block:: python
 
+      def forward(self, inputs):
+          x = tf.keras.layers.Dense(self.my_hyperparam, activation=self.my_activation)(inputs)
+          x = tf.keras.layers.Dense(1, activation="linear", use_bias=False)(x)
+          return x
 
-Any arguments/hyperparameters you want to add to your featurenet (in this case, ``my_hyperparam`` and ``my_activation``) can be adapted during the function call and the formula construction.
-you can subsequently call your model just like before and use your defined network just as the default networks as below:
+   Here, `my_hyperparam` and `my_activation` are hyperparameters that you can adapt during the function call and formula construction, providing flexibility for your shape function.
 
-.. code-block:: python
+3. **Add Your Custom Class to the ShapeFunctionRegistry:**
 
-    nam = NAM(
-    "target ~  -1 + MLP(AveBedrms) + MyCustomFunction(Population; my_hyperparam=10; my_activation='tanh')", 
-    data=data, 
-    feature_dropout=0.0001
-    )
+   It's crucial to register your custom shape function with the `ShapeFunctionRegistry` before initializing your model. This step ensures that your model can recognize and use your custom network. You can add your class to the registry as follows:
 
+   .. code-block:: python
 
-And just like that you have defined your own shape function that you can use in one of the additive models in xDL.
-Note, that if you do not add your network to the ShapeFunctionRegistry, this will throw an error
+      from xDL import ShapeFunctionRegistry
+      from xDL.shapefuncs.baseshapefunction import ShapeFunction
+
+      class MyCustomFunction(ShapeFunction):
+
+          def __init__(self, inputs, *args, **kwargs):
+              super(MyCustomFunction, self).__init__(*args, **kwargs)
+
+          def forward(self, inputs):
+              x = tf.keras.layers.Dense(self.my_hyperparam, activation=self.my_activation)(inputs)
+              x = tf.keras.layers.Dense(1, activation="linear", use_bias=False)(x)
+              return x
+
+      ShapeFunctionRegistry.add_class("MyCustomFunction", MyCustomFunction)
+
+**Using Your Custom Shape Function**
+
+Once you've defined and registered your custom shape function, you can easily incorporate it into your models. Here's how you can use it in a formula:
+
+   .. code-block:: python
+
+      nam = NAM(
+          "target ~  -1 + MLP(AveBedrms) + MyCustomFunction(Population; my_hyperparam=10; my_activation='tanh')", 
+          data=data, 
+          feature_dropout=0.0001
+      )
+
+This example demonstrates how to use your defined network in the context of an additive model within xDL. You can include your custom shape function alongside built-in ones, allowing for versatile and tailored modeling.
+
+**Important Note:**
+
+Remember that if you do not add your custom network to the `ShapeFunctionRegistry`, it will result in an error. Registering your shape function is a crucial step to ensure that your model recognizes and incorporates your custom network seamlessly.
+
+With xDL's flexibility, you can extend and tailor the library to meet your specific modeling needs and explore innovative ways to enhance interpretability and performance.
+
