@@ -3,16 +3,29 @@
   :alt: Logo
 
 
+======================================
+xDL - Explainable Deep Learning in Python
+======================================
 
-*************
-xDL - A python package for explainable Deep Learning
-*************
+``xDL`` (Explainable Deep Learning) is a Python package that focuses on training, analyzing, and comparing inherently interpretable Deep Learning Models. Our primary emphasis is on additive models and distributional regression models that are known for their transparency and interpretability.
 
-``xDL`` (Explainable Deep Learning) aims at training, analyzing and comparing inherently interpretable Deep Learning Models. The focus lies on additive models as well as distributional regression models.
-xDL provides implementations of several (mostly additive) interpretable deep neural networks and the corresponding visualizations.
-Through the simple formula like interface it makes creating and analyzing interpretable deep learning models simple.
-It uses the tensorflow.keras framework and thus offers the complete flexibility of any Keras Model.
-It is adjustable in a way that every user can easily write their own shape function / feature network.
+What is a Neural Additive Model?
+----------------------------------
+
+A **neural additive model** is a type of interpretable deep learning model that combines the power of neural networks with the interpretability of additive models. In essence, it is a model architecture that allows us to understand how individual features contribute to the model's predictions. Instead of relying on complex, black-box models, neural additive models provide clear insights into the relationships between input features and the model's output.
+
+Why Choose ``xDL`` for Interpretable Deep Learning?
+------------------------------------------------
+
+**xDL** offers a wide range of implementations for interpretable deep neural networks, with a strong emphasis on additive models. It also includes the tools and visualizations necessary for analyzing and understanding the behavior of these models. One of the key features of xDL is its user-friendly, formula-like interface, making it easy to create and analyze interpretable deep learning models.
+
+Key Features
+------------
+
+- **Flexibility:** ``xDL`` is built on the TensorFlow Keras framework, offering complete flexibility for creating and customizing interpretable deep learning models. You can leverage the power of Keras to tailor models to your specific needs.
+
+- **Adjustable Shape Functions:** ``xDL`` allows users to write their own shape functions or feature networks easily. This means you can adapt the model to work with various types of data and problems.
+
 
 
 .. contents:: Table of Contents 
@@ -81,28 +94,53 @@ All models are demonstrated in the examples folder. Generally xDL follows the Ke
 
 
 
+=========================
 From Strings to Formulas
-========================
-``xDL`` offers multiple Additive Models. Thus we closely follow the R-package mgcv (Simon Wood) in model initialization.
-The general formula for an additive model follows the following simple notion:
+=========================
 
-``"y ~ -1 feature1 + feature2 + feature1:feature2"``
+Introduction
+------------
 
-where ``~`` represents which variable is the dependent variable and which variables are the predictors and ``-1`` specifies that we fit the model without an intercept. Subsequently, we can just pass the data (pd.DatFrame) with the respectively named columns to the model.
-The ``:`` denotes a feature interaction between the named features. To define which feature is fit with which shapefunction, the notation is straight forward:
+In **xDL**, we offer multiple Additive Models. We closely follow the principles of the R-package mgcv by Simon Wood when initializing models. The general formula for an additive model follows a simple and intuitive notion:
 
-``"y ~ -1 + MLP(feature1) + RandomFourierNet(feature2) + MLP(feature1):MLP(feature2)"``
+- The ``"y ~ -1 feature1 + feature2 + feature1:feature2"`` formula, where:
+  - ``~`` represents the dependent variable and predictor variables.
+  - ``-1`` specifies that the model is fitted without an intercept.
+  - The use of ``+`` denotes the inclusion of predictor variables.
+  - The ``:`` symbolizes feature interactions between the named features.
 
-In this example ``feature1`` is fit with a default Multilayer Perceptron and ``feature2`` is fit with a default RendomFourierNet. Hyperparameters for the available shapefunctions can be easily adapted:
+Customizable Models
+--------------------
 
-``"y ~ -1 + MLP(feature1; hidden_dims=[256, 128]; activation='tanh'; encoding='PLE'; n_bins=20) + RandomFourierNet(feature2) + MLP(feature1):MLP(feature2)"``
+To define which feature is fitted with which shape function, the notation is straightforward:
 
-Thus, all additive models can be modelled over flexible features, with flexible shape functions and flexbile feature interactions.
-Note, that between hyperparameters one MUST use ``;`` instead of ``,`` since ``,`` are reserved for arguments inside a specific hyperparmeter as in ``hidden_dims=[256, 128]``.
-The data is automatically preprocessed according to the chosen shape function and datatype. The individual preprocessing can either be chosen flexibly (e.g. periodic linear encoding, one-hot, etc.) or done individually before initializing. 
-Make sure to not have multiple preprocessing steps applied when using already preprocessed input features.
-It is also easy for users to define their own shape functions and add them to the model such that they can be called just as the default ones with flexible arguments.
-See below for details.
+- ``"y ~ -1 + MLP(feature1) + RandomFourierNet(feature2) + MLP(feature1):MLP(feature2)"``
+
+  In this example, ``feature1`` is fitted with a default Multilayer Perceptron (MLP), and ``feature2`` is fitted with a default RandomFourierNet.
+
+Hyperparameter Flexibility
+--------------------------
+
+Hyperparameters for the available shape functions can be easily adapted using a clear and concise format:
+
+- ``"y ~ -1 + MLP(feature1; hidden_dims=[256, 128]; activation='tanh'; encoding='PLE'; n_bins=20) + RandomFourierNet(feature2) + MLP(feature1):MLP(feature2)"``
+
+  Here, you have full control over parameters such as hidden layer dimensions, activation functions, encodings, and the number of bins.
+
+Versatile Features and Preprocessing
+-------------------------------------
+
+All additive models in **xDL** can be constructed over flexible features, with adaptable shape functions and dynamic feature interactions. The data is automatically preprocessed according to the chosen shape function and data type.
+
+- The individual preprocessing can either be chosen flexibly (e.g., periodic linear encoding, one-hot encoding, etc.) or performed individually before initializing the model.
+- Make sure not to apply multiple preprocessing steps when using already preprocessed input features.
+
+User-Defined Shape Functions
+--------------------------
+
+**xDL** empowers users to define their own custom shape functions and seamlessly integrate them into the model. This ensures that users can call custom shape functions with flexible arguments, just like the default ones.
+
+For detailed instructions on defining custom shape functions and adding them to the model, please refer to the documentation.
 
 
 Initialize a model
