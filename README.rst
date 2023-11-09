@@ -3,9 +3,9 @@
   :alt: Logo
 
 
-======================================
+***************************************
 xDL - Explainable Deep Learning in Python
-======================================
+***************************************
 
 ``xDL`` (Explainable Deep Learning) is a Python package that focuses on training, analyzing, and comparing inherently interpretable Deep Learning Models. Our primary emphasis is on additive models and distributional regression models that are known for their transparency and interpretability.
 
@@ -30,7 +30,6 @@ Key Features
 
 .. contents:: Table of Contents 
    :depth: 2
-
 
 
 ***************
@@ -94,9 +93,9 @@ All models are demonstrated in the examples folder. Generally xDL follows the Ke
 
 
 
-=========================
+******************************
 From Strings to Formulas
-=========================
+******************************
 
 Introduction
 ------------
