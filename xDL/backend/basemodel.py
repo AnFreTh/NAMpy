@@ -1,5 +1,5 @@
 from xDL.utils.data_utils import DataModule
-from xDL.utils.formulas import FormulaHandler
+from xDL.formulas.formulas import FormulaHandler
 from keras.callbacks import *
 from scipy.stats import ttest_ind
 import pandas as pd
@@ -76,7 +76,6 @@ class AdditiveBaseModel(tf.keras.Model):
             self.validation_dataset,
             self.test_dataset,
             self.plotting_dataset,
-            self.named_feature_nets,
             self.y,
             self.feature_names,
             self.fit_intercept,
@@ -107,8 +106,10 @@ class AdditiveBaseModel(tf.keras.Model):
         (
             feature_names,
             target_name,
-            named_feature_nets,
+            terms,
             intercept,
+            # named_feature_nets,
+            # intercept,
             self.feature_information,
         ) = FH._extract_formula_data(self.formula, self.data)
 
@@ -116,20 +117,18 @@ class AdditiveBaseModel(tf.keras.Model):
         self.data = self.data[helper_idx]
 
         self.input_dict = {}
-        for idx, name in enumerate(FH.terms):
+        for idx, name in enumerate(terms):
             if ":" in name:
                 input_names = name.split(":")
-                self.input_dict["_".join(input_names)] = {
-                    "Network": named_feature_nets[idx],
+                self.input_dict["<>".join(input_names)] = {
+                    "Network": self.feature_information[input_names[0]]["Network"],
                     "hyperparams": self.feature_information[input_names[0]],
-                    "output_mode": self.feature_information[input_names[0]]["encoding"],
                 }
 
             else:
                 self.input_dict[name] = {
-                    "Network": named_feature_nets[idx],
+                    "Network": self.feature_information[name]["Network"],
                     "hyperparams": self.feature_information[name],
-                    "output_mode": self.feature_information[name]["encoding"],
                 }
 
         self.NUM_FEATURES = []
@@ -178,15 +177,15 @@ class AdditiveBaseModel(tf.keras.Model):
         # Create tf.keras.Input for each feature in the dataset with appropriate shapes
         for inputs, labels in train_dataset.take(1):
             for feature_name, feature_value in inputs.items():
-                self.inputs[feature_name] = tf.keras.Input(
+                self.inputs[feature_name] = tf.keras.layers.Input(
                     shape=feature_value.shape[1:],
                     name=feature_name,
                 )
 
-        for idx, name in enumerate(FH.terms):
+        for idx, name in enumerate(terms):
             if ":" in name:
                 input_names = name.split(":")
-                self.input_dict["_".join(input_names)]["Input"] = [
+                self.input_dict["<>".join(input_names)]["Input"] = [
                     self.inputs[inp_name] for inp_name in input_names
                 ]
             else:
@@ -197,7 +196,6 @@ class AdditiveBaseModel(tf.keras.Model):
             val_dataset,
             test_dataset,
             plotting_dataset,
-            named_feature_nets,
             target_name,
             feature_names,
             intercept,
@@ -465,10 +463,14 @@ class BaseModel(tf.keras.Model):
 
         for column in feature_names:
             if pd.api.types.is_numeric_dtype(self.data[column]):
-                if self.data[column].equals(self.data[column].astype(int)):
+                if pd.api.types.is_integer_dtype(self.data[column]):
                     self.CAT_FEATURES.append(column)
-                else:
+                elif pd.api.types.is_float_dtype(self.data[column]):
                     self.NUM_FEATURES.append(column)
+                else:
+                    raise ValueError(
+                        f"The datatypes in your pd.DataFrame are not supported for column {column}"
+                    )
             elif pd.api.types.is_string_dtype(
                 self.data[column]
             ) or pd.api.types.is_object_dtype(self.data[column]):
@@ -490,7 +492,8 @@ class BaseModel(tf.keras.Model):
         output_mode = []
         self.feature_information = {}
         for name in feature_names:
-            self.feature_information[name] = {"data_type": self.data[name].dtype}
+            self.feature_information[name] = {"dtype": self.data[name].dtype}
+            self.feature_information[name]["Network"] = None
             if (
                 np.issubdtype(self.data[name].dtype, np.integer)
                 or self.data[name].dtype == "object"

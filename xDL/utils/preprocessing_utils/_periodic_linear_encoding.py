@@ -113,11 +113,15 @@ class PLE(tf.keras.layers.Layer):
         else:
             raise ValueError("This task is not supported")
 
-        dt.fit(np.expand_dims(feature, 1), target)
+        dt.fit(feature, target)
 
         self.conditions = tree_to_code(dt, ["feature"])
 
     def call(self, feature):
+        if feature.shape == (feature.shape[0], 1):
+            feature = np.squeeze(feature, axis=1)
+        else:
+            feature = feature
         result_list = []
         for idx, cond in enumerate(self.conditions):
             result_list.append(eval(cond) * (idx + 1))
@@ -177,7 +181,10 @@ class OneHotBinning(tf.keras.layers.Layer):
         super(OneHotBinning, self).build(input_shape)
 
     def call(self, feature):
-        feature = feature
+        if feature.shape == (feature.shape[0], 1):
+            feature = np.squeeze(feature, axis=1)
+        else:
+            feature = feature
 
         result_list = []
         for idx, cond in enumerate(self.conditions):
@@ -195,7 +202,7 @@ class OneHotBinning(tf.keras.layers.Layer):
         else:
             raise ValueError("This task is not supported")
 
-        dt.fit(np.expand_dims(feature, 1), target)
+        dt.fit(feature, target)
         self.conditions = tree_to_code(dt, ["feature"])
 
 
@@ -214,7 +221,10 @@ class IntegerBinning(tf.keras.layers.Layer):
         super(IntegerBinning, self).build(input_shape)
 
     def call(self, feature):
-        feature = feature
+        if feature.shape == (feature.shape[0], 1):
+            feature = np.squeeze(feature, axis=1)
+        else:
+            feature = feature
 
         result_list = []
         for idx, cond in enumerate(self.conditions):
@@ -236,7 +246,7 @@ class IntegerBinning(tf.keras.layers.Layer):
         else:
             raise ValueError("This task is not supported")
 
-        dt.fit(np.expand_dims(feature, 1), target)
+        dt.fit(feature, target)
 
         self.conditions = tree_to_code(dt, ["feature"])
 

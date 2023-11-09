@@ -2,6 +2,55 @@ from tensorflow.keras.layers import Layer
 import tensorflow as tf
 
 
+class AddWeightsLayer(tf.keras.layers.Layer):
+    def __init__(self, weight_value=1e-25, **kwargs):
+        """
+        Initialize the AddWeightsLayer. -> Layer that is added as mask to spline inputs
+
+        Args:
+            weight_value (float): The initial value of trainable weights (default is 1e-16).
+            **kwargs: Additional keyword arguments for the base class constructor.
+        """
+        super(AddWeightsLayer, self).__init__(**kwargs)
+        self.weight_value = weight_value
+
+    def build(self, input_shape):
+        """
+        Build the layer by creating trainable weights.
+
+        Args:
+            input_shape (tuple): The shape of the input tensor.
+
+        Returns:
+            None
+        """
+        # Create trainable weights with the same shape as the input
+        self.pseudo_knots_locations = self.add_weight(
+            shape=(input_shape[-1],),
+            initializer=tf.constant_initializer(self.weight_value),
+            trainable=True,
+            name="pseudo_knots_locations",
+        )
+        super(AddWeightsLayer, self).build(input_shape)
+
+    def call(self, inputs):
+        """
+        Add the trainable weights to each row except the first and last columns of the input.
+
+        Args:
+            inputs (tf.Tensor): The input tensor.
+
+        Returns:
+            tf.Tensor: The modified input tensor with weights added.
+        """
+        input_shape = tf.shape(inputs)
+        weights = (
+            tf.ones((input_shape[0], input_shape[1])) * self.pseudo_knots_locations
+        )
+
+        return inputs + weights
+
+
 class InterceptLayer(Layer):
     """
     Custom Keras layer to add an intercept (bias) term to the input tensor.

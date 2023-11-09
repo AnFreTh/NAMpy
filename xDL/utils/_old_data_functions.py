@@ -39,7 +39,7 @@ def df_to_dataset(
         tf.data.Dataset: A TensorFlow Dataset.
     """
     # Common data types including subtypes
-    common_datatypes = (int, float, str, bool, list, dict, tuple)
+    common_datatypes = (int, float, str, bool, list, dict, tuple, object)
 
     for column, dtype in dataframe.dtypes.items():
         if column == target:

@@ -1,15 +1,14 @@
 import tensorflow as tf
 from keras.layers import Add
+import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from xDL.utils.data_utils import *
 from xDL.backend.basemodel import AdditiveBaseModel
-from xDL.backend.helper_nets.featurenets import *
-from xDL.backend.helper_nets.layers import *
-from xDL.utils.graphing import *
-from xDL.utils.helper_funcs import *
+from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
+from xDL.utils.graphing import generate_subplots
 import warnings
 from scipy.stats import ttest_ind
+from xDL.shapefuncs.registry import ShapeFunctionRegistry
 
 # Filter out the specific warning by category
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -100,15 +99,42 @@ class NAM(AdditiveBaseModel):
         if self.fit_intercept:
             self.intercept_layer = InterceptLayer()
 
-        self.feature_nets = []
+        shapefuncs = []
         for _, key in enumerate(self.input_dict):
-            self.feature_nets.append(
-                eval(self.input_dict[key]["Network"])(
-                    inputs=self.input_dict[key]["Input"],
-                    param_dict=self.input_dict[key]["hyperparams"],
-                    name=key,
-                    output_dimension=num_classes,
+            class_reference = ShapeFunctionRegistry.get_class(
+                self.input_dict[key]["Network"]
+            )
+            if class_reference:
+                shapefuncs.append(
+                    class_reference(
+                        inputs=self.input_dict[key]["Input"],
+                        param_dict=self.input_dict[key]["hyperparams"],
+                        name=key,
+                        identifier=key,
+                        output_dimension=num_classes,
+                    )
                 )
+            else:
+                raise ValueError(
+                    f"{self.input_dict[key]['Network']} not found in the registry"
+                )
+
+        self.feature_nets = []
+        for idx, key in enumerate(self.input_dict.keys()):
+            if "<>" in key:
+                keys = key.split("<>")
+                inputs = [self.inputs[k] for k in keys]
+                name = "_._".join(keys)
+                my_model = shapefuncs[idx].build(inputs, name=name)
+            else:
+                my_model = shapefuncs[idx].build(self.inputs[key], name=key)
+
+            self.feature_nets.append(my_model)
+
+        print("------------- Network architecture --------------")
+        for idx, net in enumerate(self.feature_nets):
+            print(
+                f"{net.name} -> {shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={shapefuncs[idx].output_dimension}"
             )
 
         self.output_layer = IdentityLayer(activation=output_activation)
@@ -125,6 +151,7 @@ class NAM(AdditiveBaseModel):
             Output tensor.
         """
 
+        # outputs = [network(inputs) for network in self.feature_nets]
         outputs = [network(inputs) for network in self.feature_nets]
 
         if training:

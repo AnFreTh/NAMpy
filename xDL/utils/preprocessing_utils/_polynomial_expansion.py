@@ -26,7 +26,7 @@ class PolynomialExpansion(tf.keras.layers.Layer):
     def build(self, input_shape):
         super(PolynomialExpansion, self).build(input_shape)
 
-    def adapt(self):
+    def adapt(self, inputs):
         pass
 
     def call(self, inputs):
@@ -42,4 +42,4 @@ class PolynomialExpansion(tf.keras.layers.Layer):
         # Concatenate the polynomial terms along the feature dimension
         expanded_features = np.stack(polynomial_terms, 1)
 
-        return expanded_features
+        return np.squeeze(expanded_features, axis=-1)

@@ -1,12 +1,17 @@
 import numpy as np
 import tensorflow as tf
 import pandas as pd
-from .preprocessing_utils._periodic_linear_encoding import *
-from .preprocessing_utils._cubic_expansion import *
-from .preprocessing_utils._polynomial_expansion import *
-from .preprocessing_utils._minmax import *
-from .preprocessing_utils._helper import *
+from .preprocessing_utils._periodic_linear_encoding import (
+    PLE,
+    OneHotBinning,
+    IntegerBinning,
+)
+from .preprocessing_utils._cubic_expansion import CubicExpansion
+from .preprocessing_utils._polynomial_expansion import PolynomialExpansion
+from .preprocessing_utils._minmax import MinMaxEncodingLayer
+from .preprocessing_utils._helper import NoPreprocessingCatLayer, NoPreprocessingLayer
 import numbers
+from tqdm import tqdm
 
 
 class Preprocessor(tf.keras.layers.Layer):
@@ -67,9 +72,9 @@ class Preprocessor(tf.keras.layers.Layer):
         for key, feature in self.feature_preprocessing_dict.items():
             if feature["encoding"] == "normalized":
                 if feature["Network"] == "CubicSplineNet":
-                    self.preprocessors[key] = CubicExpansion(feature["n_knots"][0])
+                    self.preprocessors[key] = CubicExpansion(feature["n_knots"])
                 elif feature["Network"] == "PolynomialSplineNet":
-                    self.preprocessors[key] = PolynomialExpansion(feature["degree"][0])
+                    self.preprocessors[key] = PolynomialExpansion(feature["degree"])
                 else:
                     self.preprocessors[key] = tf.keras.layers.Normalization()
 
@@ -98,7 +103,9 @@ class Preprocessor(tf.keras.layers.Layer):
                         tree_params=self.tree_params,
                     )
                 elif np.issubdtype(feature["dtype"], np.integer):
-                    self.preprocessors[key] = NoPreprocessingLayer(type="int")
+                    self.preprocessors[key] = tf.keras.layers.IntegerLookup(
+                        output_mode="int"
+                    )  # NoPreprocessingLayer(type="int")
 
             elif feature["encoding"] == "one_hot":
                 if feature["dtype"] == object:
@@ -112,7 +119,17 @@ class Preprocessor(tf.keras.layers.Layer):
                         tree_params=self.tree_params,
                     )
                 elif np.issubdtype(feature["dtype"], np.integer):
-                    self.preprocessors[key] = NoPreprocessingLayer(type="one_hot")
+                    self.preprocessors[key] = NoPreprocessingCatLayer(type="one_hot")
+
+            elif feature["encoding"] == "PLE":
+                self.preprocessors[key] = PLE(
+                    n_bins=feature["n_bins"],
+                    task=self.task,
+                    tree_params=self.tree_params,
+                )
+
+            else:
+                self.preprocessors[key] = NoPreprocessingLayer()
 
     def call(self, data, target):
         """
@@ -134,6 +151,13 @@ class Preprocessor(tf.keras.layers.Layer):
         for key, feature in tqdm(data.items()):
             if key == self.target_name:
                 continue
+                # get data in correct shape
+            try:
+                feature.shape[1]
+            except IndexError:
+                feature = np.expand_dims(feature, 1)
+
+            # adapt the preprocessing layers to the data
             try:
                 self.preprocessors[key].adapt(feature)
             except TypeError:
@@ -296,6 +320,10 @@ class DataModule:
         for key, feature in tqdm(plotting_data.items()):
             if key == self.target_name:
                 continue
+            try:
+                feature.shape[1]
+            except IndexError:
+                feature = np.expand_dims(feature, 1)
 
             encoded_feature = self.encoder.preprocessors[key](feature)
 
@@ -366,7 +394,7 @@ class DataModule:
             )
 
         else:
-            self.training_dataset = self.training_dataset.batch(batch_size)
+            self.training_dataset = self.dataset.batch(batch_size)
             self.training_dataset = self.training_dataset.prefetch(batch_size)
             self.validation_dataset = None
             self.test_dataset = None

@@ -1,11 +1,14 @@
 import tensorflow as tf
 from keras.callbacks import *
-from sklearn.model_selection import KFold
-from xDL.utils.data_utils import *
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
 from xDL.backend.basemodel import AdditiveBaseModel
-from xDL.utils.graphing import *
-from xDL.backend.transformer_encoder import TransformerEncoder
-from xDL.backend.helper_nets.featurenets import *
+from xDL.utils.graphing import generate_subplots
+from xDL.shapefuncs.transformer_encoder import TransformerEncoder
+from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
+from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
+from xDL.shapefuncs.registry import ShapeFunctionRegistry
 import seaborn as sns
 
 import warnings
@@ -146,7 +149,8 @@ class NATT(AdditiveBaseModel):
         self.transformer_mlp = build_cls_mlp(
             mlp_input_dim, mlp_hidden_factors, ff_dropout
         )
-        self.out_activation = out_activation
+
+        self.identity_layer = IdentityLayer(out_activation)
 
         ####################################
         self.output_layer = tf.keras.layers.Dense(
@@ -159,17 +163,52 @@ class NATT(AdditiveBaseModel):
         if self.fit_intercept:
             self.intercept_layer = InterceptLayer()
 
-        self.feature_nets = []
+        shapefuncs = []
         for _, key in enumerate(self.input_dict):
-            if self.input_dict[key]["Network"] == "MLP":
-                self.feature_nets.append(
-                    eval(self.input_dict[key]["Network"])(
-                        inputs=self.input_dict[key]["Input"],
-                        param_dict=self.input_dict[key]["hyperparams"],
-                        name=key,
-                        output_dimension=num_classes,
-                    )
+            if self.input_dict[key]["Network"] != "Transformer":
+                class_reference = ShapeFunctionRegistry.get_class(
+                    self.input_dict[key]["Network"]
                 )
+                if class_reference:
+                    shapefuncs.append(
+                        class_reference(
+                            inputs=self.input_dict[key]["Input"],
+                            param_dict=self.input_dict[key]["hyperparams"],
+                            name=key,
+                            identifier=key,
+                            output_dimension=num_classes,
+                        )
+                    )
+                else:
+                    raise ValueError(
+                        f"{self.input_dict[key]['Network']} not found in the registry"
+                    )
+
+        self.feature_nets = []
+        offset = 0
+        for idx, key in enumerate(self.input_dict.keys()):
+            if self.input_dict[key]["Network"] != "Transformer":
+                idx = idx - offset
+                if "<>" in key:
+                    keys = key.split("<>")
+                    inputs = [self.inputs[k] for k in keys]
+                    name = "_._".join(keys)
+                    my_model = shapefuncs[idx].build(inputs, name=name)
+                else:
+                    my_model = shapefuncs[idx].build(self.inputs[key], name=key)
+
+                self.feature_nets.append(my_model)
+            else:
+                offset += 1
+
+        print("------------- Network architecture --------------")
+        print(
+            f"Transformer -> ({self.TRANSFORMER_FEATURES}, dims={embedding_dim}, depth={depth}, heads={heads}) -> MLP(input_dim={mlp_input_dim}) -> output dimension={1}"
+        )
+        for idx, net in enumerate(self.feature_nets):
+            print(
+                f"{net.name} -> {shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={shapefuncs[idx].output_dimension}"
+            )
 
         self.ln = tf.keras.layers.LayerNormalization()
 
@@ -224,11 +263,6 @@ class NATT(AdditiveBaseModel):
             if self.fit_intercept:
                 summed_outputs = self.intercept_layer(summed_outputs)
             output = self.identity_layer(summed_outputs)
-
-            if self.out_activation == "linear":
-                output = summed_outputs
-            else:
-                output = self.out_activation(summed_outputs)
             att_testing_weights = self.encoder.att_weights
 
             return {
@@ -245,10 +279,7 @@ class NATT(AdditiveBaseModel):
 
             x = tf.keras.layers.Add()(self.ms)
 
-            if self.out_activation == "linear":
-                output = x
-            else:
-                output = self.out_activation(x)
+            output = self.identity_layer(x)
             return output
 
     def plot(self):

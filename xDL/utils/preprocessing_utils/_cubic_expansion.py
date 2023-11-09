@@ -42,8 +42,13 @@ class CubicExpansion(tf.keras.layers.Layer):
     def build(self, input_shape):
         super(CubicExpansion, self).build(input_shape)
 
-    def adapt(self):
-        pass
+    def adapt(self, x):
+        # xk = get_optimal_knots(train_x, train_target, n_bins=self.num_knots)
+        self.xk = np.linspace(x.min(), x.max(), self.num_knots)
+
+        # xk.append(train_x.min())
+        # xk.append(train_x.max())
+        # xk = np.sort(list(set(xk)))
 
     def get_FS(self, xk):
         """
@@ -78,23 +83,16 @@ class CubicExpansion(tf.keras.layers.Layer):
         :return:
         """
 
-        # xk = get_optimal_knots(train_x, train_target, n_bins=self.num_knots)
-        xk = np.linspace(x.min(), x.max(), self.num_knots)
-
-        # xk.append(train_x.min())
-        # xk.append(train_x.max())
-        # xk = np.sort(list(set(xk)))
-
+        F, S = self.get_FS(self.xk)
         n = len(x)
-        k = len(xk)
-        F, S = self.get_FS(xk)
+        k = len(self.xk)
         base = np.zeros((n, k))
         for i in range(0, len(x)):
             # find interval in which x[i] lies
             # and evaluate basis function from p.201 in Wood (2017)
-            j = bisect.bisect_left(xk, x[i])
-            x_j = xk[j - 1]
-            x_j1 = xk[j]
+            j = bisect.bisect_left(self.xk, x[i])
+            x_j = self.xk[j - 1]
+            x_j1 = self.xk[j]
             h = x_j1 - x_j
             a_jm = (x_j1 - x[i]) / h
             a_jp = (x[i] - x_j) / h

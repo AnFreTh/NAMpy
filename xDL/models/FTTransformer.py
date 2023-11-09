@@ -1,11 +1,11 @@
 import tensorflow as tf
+import pandas as pd
+import matplotlib.pyplot as plt
 from keras.callbacks import *
-from sklearn.model_selection import KFold
-from xDL.utils.data_utils import *
+import numpy as np
 from xDL.backend.basemodel import BaseModel
-from xDL.utils.graphing import *
-from xDL.backend.transformer_encoder import FTTransformerEncoder
-from xDL.backend.helper_nets.featurenets import *
+from xDL.shapefuncs.transformer_encoder import FTTransformerEncoder
+from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
 import seaborn as sns
 
 import warnings
