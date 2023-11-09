@@ -224,25 +224,25 @@ For Encodings, if conceptually possible the encodings are usable for different s
 The following encodings are available:
 
 * Normalized
-  * Simple standard normalization of a continuous input feature
+    * Simple standard normalization of a continuous input feature
 * One-Hot: Standard One-hot encoding. 
-  * For categorical features standard one-hot encoding where one column is added to account for unknown values (['UNK'])
-  * For numerical features, the feature is binned, with the bin boundaries being created by a decision tree
+    * For categorical features standard one-hot encoding where one column is added to account for unknown values (['UNK'])
+    * For numerical features, the feature is binned, with the bin boundaries being created by a decision tree
 * Int:  Integer encoding
-  * For categorical features standard one-hot encoding where one value is added to account for unknown values (['UNK'])
-  * For numerical features, the feature is binned, with the bin boundaries being created by a decision tree
+    * For categorical features standard one-hot encoding where one value is added to account for unknown values (['UNK'])
+    * For numerical features, the feature is binned, with the bin boundaries being created by a decision tree
 * PLE: Periodic Linear Encodings
-  * Periodic Linear Encoding for numerical features as introduced by Gorishniy et al. 2022.
+    * Periodic Linear Encoding for numerical features as introduced by Gorishniy et al. 2022.
 * MinMax: Stnadard min-max encoding
-  * Only for float features
+    * Only for float features
 * Cubic Expansion
-  * Classical cubic spline expansion as used in the CubicSplinenet
+    * Classical cubic spline expansion as used in the CubicSplinenet
 * Polynomial Expansion
-  * Classical polynomial Expansion of degree n (as specified)
+    * Classical polynomial Expansion of degree n (as specified)
 * Discretized
-  * Standard discretization as done in the tf.keras.layer preprocessing layer
+    * Standard discretization as done in the tf.keras.layer preprocessing layer
 * Hashing
-  * Standard feature hashing as done in the tf.keras.layer preprocessing layer
+    * Standard feature hashing as done in the tf.keras.layer preprocessing layer
 * None: all preprocessing steps can be performed by the user before the model initialization.
 
 
