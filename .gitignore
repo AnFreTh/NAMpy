@@ -1,4 +1,5 @@
 __pycache__/
 *.pyc
 *.pyo
+*.json
 NATT_ablation_interaction.ipynb
