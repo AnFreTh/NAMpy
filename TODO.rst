@@ -11,11 +11,6 @@ Models to implement:
     - QNAM :question:
     - BNAM :question:
 
-
-***************************************************************
-Make real Spline Optimization with smoothing :question:
-***************************************************************
-
 ***************************************************************
 Featurenetworks to implement
 ***************************************************************
@@ -23,9 +18,7 @@ Featurenetworks to implement
     - Spline Expansions also for MLP :question:
     - Tensorproduct Expansion
     - Numerical Feature Binning: Transformer :white_check_mark:
-    - Neural Decision Trees :question:
-    - RandomFourierFeatures :question:
-
+    - RandomFourierFeatures :white_check_mark:
 
 ***************************************************************
 LSS
