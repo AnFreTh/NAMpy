@@ -190,7 +190,7 @@ class FTTransformer(BaseModel):
 
         column_list = []
         for i, feature in enumerate(self.FEATURES):
-            column_list.extend([feature] * self.inputs[feature].shape[1])
+            column_list.append(feature)
         importances = pd.DataFrame(importances[:, :-1], columns=column_list)
         average_importances = []
         for col_name in self.FEATURES:
@@ -239,7 +239,7 @@ class FTTransformer(BaseModel):
 
         column_list = []
         for i, feature in enumerate(self.FEATURES):
-            column_list.extend([feature] * self.inputs[feature].shape[1])
+            column_list.append(feature)
         importances = pd.DataFrame(importances[:, :-1], columns=column_list)
         average_importances = []
         for col_name in self.FEATURES:
@@ -287,7 +287,7 @@ class FTTransformer(BaseModel):
 
         column_list = []
         for i, feature in enumerate(self.FEATURES):
-            column_list.extend([feature] * self.inputs[feature].shape[1])
+            column_list.append(feature)
         importances = pd.DataFrame(importances[:, :-1], columns=column_list)
         average_importances = []
         for col_name in self.FEATURES:
