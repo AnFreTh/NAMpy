@@ -417,6 +417,7 @@ class JohnsonSU(BaseFamily):
 
     def __init__(self, name="JohnsonSU", family=tfd.JohnsonSU):
         self.dimension = 4
+        self.param_names = ["loc", "scale", "skewness", "tailweight"]
         super(JohnsonSU, self).__init__(name, family)
 
     def _loc_transform(self, x):

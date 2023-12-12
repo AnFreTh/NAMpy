@@ -7,6 +7,7 @@ import re
 from sklearn.tree import _tree
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from keras.utils import to_categorical
+from keras.layers import Discretization
 
 
 def tree_to_code(tree, feature_names):
@@ -112,63 +113,84 @@ class PLE(tf.keras.layers.Layer):
             dt = DecisionTreeClassifier(max_leaf_nodes=self.n_bins)
         else:
             raise ValueError("This task is not supported")
-
         dt.fit(feature, target)
-
         self.conditions = tree_to_code(dt, ["feature"])
 
-    def call(self, feature):
+    def call(self, feature, identifier=None):
         if feature.shape == (feature.shape[0], 1):
             feature = np.squeeze(feature, axis=1)
         else:
             feature = feature
         result_list = []
-        for idx, cond in enumerate(self.conditions):
-            result_list.append(eval(cond) * (idx + 1))
+        if identifier == "UNK":
+            for idx, cond in enumerate(self.conditions):
+                result_list.append(eval(cond) * 1)
 
-        encoded_feature = np.expand_dims(np.sum(np.stack(result_list).T, axis=1), 1)
+            encoded_feature = np.stack(result_list).T
 
-        encoded_feature = tf.cast(
-            tf.convert_to_tensor(encoded_feature) - 1, dtype=tf.int64
-        )
-
-        pattern = r"-?\d+\.\d+"  # This pattern matches integers and floats
-        # Initialize an empty list to store the extracted numbers
-        locations = []
-        # Iterate through the strings and extract numbers
-        for string in self.conditions:
-            matches = re.findall(pattern, string)
-            locations.extend(matches)
-
-        locations = [float(number) for number in locations]
-
-        locations = list(set(locations))
-
-        locations = locations = np.sort(locations)
-
-        ple_encoded_feature = np.zeros(
-            (len(feature), tf.reduce_max(encoded_feature).numpy() + 1)
-        )
-
-        for idx in range(len(encoded_feature)):
-            ple_encoded_feature[idx][encoded_feature[idx]] = (
-                feature[idx] - locations[(encoded_feature[idx].numpy() - 2)[0]]
-            ) / (
-                locations[(encoded_feature[idx].numpy() - 1)[0]]
-                - locations[(encoded_feature[idx].numpy() - 2)[0]]
+            encoded_feature = np.zeros(
+                (len(encoded_feature), encoded_feature.shape[1] + 1)
             )
-            ple_encoded_feature[idx, : encoded_feature[idx].numpy()[0]] = 1
 
-        if ple_encoded_feature.shape[1] == 1:
-            return tf.zeros([len(feature), self.n_bins])
+            encoded_feature[:, -1] = 1
 
+            return tf.cast(tf.convert_to_tensor(encoded_feature), dtype=tf.float32)
         else:
-            return tf.cast(tf.convert_to_tensor(ple_encoded_feature), dtype=tf.float32)
+            for idx, cond in enumerate(self.conditions):
+                result_list.append(eval(cond) * (idx + 1))
+
+            encoded_feature = np.expand_dims(np.sum(np.stack(result_list).T, axis=1), 1)
+
+            encoded_feature = tf.cast(
+                tf.convert_to_tensor(encoded_feature) - 1, dtype=tf.int64
+            )
+
+            pattern = r"-?\d+\.\d+"  # This pattern matches integers and floats
+            # Initialize an empty list to store the extracted numbers
+            locations = []
+            # Iterate through the strings and extract numbers
+            for string in self.conditions:
+                matches = re.findall(pattern, string)
+                locations.extend(matches)
+
+            locations = [float(number) for number in locations]
+
+            locations = list(set(locations))
+
+            locations = locations = np.sort(locations)
+
+            ple_encoded_feature = np.zeros(
+                (len(feature), tf.reduce_max(encoded_feature).numpy() + 2)
+            )
+
+            for idx in range(len(encoded_feature)):
+                ple_encoded_feature[idx][encoded_feature[idx]] = (
+                    feature[idx] - locations[(encoded_feature[idx].numpy() - 2)[0]]
+                ) / (
+                    locations[(encoded_feature[idx].numpy() - 1)[0]]
+                    - locations[(encoded_feature[idx].numpy() - 2)[0]]
+                )
+                ple_encoded_feature[idx, : encoded_feature[idx].numpy()[0]] = 1
+                ple_encoded_feature[idx, -1] = 0
+
+            if ple_encoded_feature.shape[1] == 1:
+                return tf.zeros([len(feature), self.n_bins])
+
+            else:
+                return tf.cast(
+                    tf.convert_to_tensor(ple_encoded_feature), dtype=tf.int64
+                )
 
 
 class OneHotBinning(tf.keras.layers.Layer):
     def __init__(
-        self, n_bins=20, tree_params={}, task="regression", conditions=None, **kwargs
+        self,
+        n_bins=20,
+        tree_params={},
+        task="regression",
+        conditions=None,
+        identifier=None,
+        **kwargs
     ):
         super(OneHotBinning, self).__init__(**kwargs)
 
@@ -176,34 +198,148 @@ class OneHotBinning(tf.keras.layers.Layer):
         self.tree_params = tree_params
         self.n_bins = n_bins
         self.conditions = conditions
+        self.identifier = identifier
 
     def build(self, input_shape):
         super(OneHotBinning, self).build(input_shape)
 
-    def call(self, feature):
+    def adapt(self, feature, target):
+        if not self.identifier:
+            if self.task == "regression":
+                dt = DecisionTreeRegressor(max_leaf_nodes=self.n_bins)
+            elif self.task == "classification":
+                dt = DecisionTreeClassifier(max_leaf_nodes=self.n_bins)
+            else:
+                raise ValueError("This task is not supported")
+            dt.fit(feature, target)
+            self.conditions = tree_to_code(dt, ["feature"])
+
+        elif self.identifier == "UNK":
+            if self.task == "regression":
+                dt = DecisionTreeRegressor(max_leaf_nodes=self.n_bins)
+            elif self.task == "classification":
+                dt = DecisionTreeClassifier(max_leaf_nodes=self.n_bins)
+            else:
+                raise ValueError("This task is not supported")
+            dt.fit(feature, target)
+            self.conditions = tree_to_code(dt, ["feature"])
+
+    def call(self, feature, identifier=None):
         if feature.shape == (feature.shape[0], 1):
             feature = np.squeeze(feature, axis=1)
         else:
             feature = feature
-
         result_list = []
-        for idx, cond in enumerate(self.conditions):
-            result_list.append(eval(cond) * 1)
+        if identifier == "UNK":
+            for idx, cond in enumerate(self.conditions):
+                result_list.append(eval(cond) * 1)
 
-        encoded_feature = np.stack(result_list).T
+            encoded_feature = np.stack(result_list).T
 
-        return tf.cast(tf.convert_to_tensor(encoded_feature), dtype=tf.int64)
+            encoded_feature = np.zeros(
+                (len(encoded_feature), encoded_feature.shape[1] + 1)
+            )
+
+            encoded_feature[:, -1] = 1
+
+            return tf.cast(tf.convert_to_tensor(encoded_feature), dtype=tf.int64)
+
+        else:
+            result_list = []
+            for idx, cond in enumerate(self.conditions):
+                result_list.append(eval(cond) * 1)
+
+            encoded_feature = np.stack(result_list).T
+
+            extended_feature = np.zeros(
+                (len(encoded_feature), encoded_feature.shape[1] + 1)
+            )
+            extended_feature[:, :-1] = encoded_feature
+            return tf.cast(tf.convert_to_tensor(extended_feature), dtype=tf.int64)
+
+
+class OneHotDiscretizedBinning(tf.keras.layers.Layer):
+    def __init__(self, n_bins=20, conditions=None, **kwargs):
+        super(OneHotDiscretizedBinning, self).__init__(**kwargs)
+
+        self.n_bins = n_bins
+        self.conditions = conditions
+        self.prepro_layer = Discretization(
+            bin_boundaries=None,
+            num_bins=n_bins,
+            epsilon=0.01,
+            output_mode="one_hot",
+            sparse=False,
+            dtype=None,
+            name=None,
+        )
+
+    def build(self, input_shape):
+        super(OneHotDiscretizedBinning, self).build(input_shape)
 
     def adapt(self, feature, target):
-        if self.task == "regression":
-            dt = DecisionTreeRegressor(max_leaf_nodes=self.n_bins)
-        elif self.task == "classification":
-            dt = DecisionTreeClassifier(max_leaf_nodes=self.n_bins)
-        else:
-            raise ValueError("This task is not supported")
+        self.prepro_layer.adapt(feature)
 
-        dt.fit(feature, target)
-        self.conditions = tree_to_code(dt, ["feature"])
+    def call(self, feature, identifier=None):
+        if feature.shape == (feature.shape[0], 1):
+            feature = np.squeeze(feature, axis=1)
+        else:
+            feature = feature
+        if identifier == "UNK":
+            feature_shape = self.prepro_layer(feature).shape[1]
+            encoded_feature = np.zeros((len(feature), feature_shape + 1))
+
+            encoded_feature[:, -1] = 1
+
+            return tf.cast(tf.convert_to_tensor(encoded_feature), dtype=tf.int64)
+
+        else:
+            encoded_feature = self.prepro_layer(feature)
+            extended_feature = np.zeros(
+                (len(encoded_feature), encoded_feature.shape[1] + 1)
+            )
+            extended_feature[:, :-1] = encoded_feature
+            return tf.cast(tf.convert_to_tensor(extended_feature), dtype=tf.int64)
+
+
+class OneHotConstantBinning(tf.keras.layers.Layer):
+    def __init__(self, n_bins=20, conditions=None, **kwargs):
+        super(OneHotConstantBinning, self).__init__(**kwargs)
+
+        self.n_bins = n_bins
+
+    def build(self, input_shape):
+        super(OneHotConstantBinning, self).build(input_shape)
+
+    def adapt(self, feature, target):
+        bin_boundaries = np.linspace(
+            np.min(feature), np.max(feature), self.n_bins - 1
+        ).tolist()
+
+        self.prepro_layer = Discretization(
+            bin_boundaries=bin_boundaries,
+            output_mode="one_hot",
+        )
+
+    def call(self, feature, identifier=None):
+        if feature.shape == (feature.shape[0], 1):
+            feature = np.squeeze(feature, axis=1)
+        else:
+            feature = feature
+        if identifier == "UNK":
+            encoded_feature = np.zeros((len(feature), self.n_bins + 1))
+
+            encoded_feature[:, -1] = 1
+
+            return tf.cast(tf.convert_to_tensor(encoded_feature), dtype=tf.int64)
+
+        else:
+            encoded_feature = self.prepro_layer(feature)
+            extended_feature = np.zeros(
+                (len(encoded_feature), encoded_feature.shape[1] + 1)
+            )
+            extended_feature[:, :-1] = encoded_feature
+            return tf.cast(tf.convert_to_tensor(extended_feature), dtype=tf.int64)
 
 
 class IntegerBinning(tf.keras.layers.Layer):

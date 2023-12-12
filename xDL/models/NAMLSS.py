@@ -326,18 +326,35 @@ class NAMLSS(AdditiveBaseModel):
                     alpha=0.5,
                     color="cornflowerblue",
                 )
+
                 for j in range(self.family.dimension):
-                    ax[idx, j].plot(
-                        self.plotting_data[self.feature_nets[idx].name],
-                        preds[idx][:, j],
-                        linewidth=2,
-                        color="crimson",
-                    )
-                    ax[idx, j].set_title(
-                        f"Effect of {self.feature_nets[idx].name} on theta_{[j+1]}"
-                    )
-                    ax[idx, j].set_ylabel(f"theta_{[j+1]}")
-                    ax[idx, j].grid(True)
-                    # Data density histogram
+                    if self.feature_nets[idx].name in self.CAT_FEATURES:
+                        ax[idx, j].scatter(
+                            self.plotting_data[self.feature_nets[idx].name],
+                            preds[idx][:, j],
+                            linewidth=2,
+                            color="crimson",
+                            marker="x",
+                        )
+                        ax[idx, j].set_title(
+                            f"Effect of {self.feature_nets[idx].name} on theta_{[j+1]}"
+                        )
+                        ax[idx, j].set_ylabel(f"theta_{[j+1]}")
+                        ax[idx, j].grid(True)
+                        # Data density histogram
+
+                    else:
+                        ax[idx, j].plot(
+                            self.plotting_data[self.feature_nets[idx].name],
+                            preds[idx][:, j],
+                            linewidth=2,
+                            color="crimson",
+                        )
+                        ax[idx, j].set_title(
+                            f"Effect of {self.feature_nets[idx].name} on theta_{[j+1]}"
+                        )
+                        ax[idx, j].set_ylabel(f"theta_{[j+1]}")
+                        ax[idx, j].grid(True)
+                        # Data density histogram
         plt.tight_layout(pad=0.4, w_pad=0.3)
         plt.show()

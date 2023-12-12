@@ -5,6 +5,8 @@ from .preprocessing_utils._periodic_linear_encoding import (
     PLE,
     OneHotBinning,
     IntegerBinning,
+    OneHotConstantBinning,
+    OneHotDiscretizedBinning,
 )
 from .preprocessing_utils._cubic_expansion import CubicExpansion
 from .preprocessing_utils._polynomial_expansion import PolynomialExpansion
@@ -91,6 +93,16 @@ class Preprocessor(tf.keras.layers.Layer):
                     num_bins=feature["n_bins"]
                 )
 
+            elif feature["encoding"] == "one_hot_constant":
+                self.preprocessors[key] = OneHotConstantBinning(
+                    n_bins=feature["n_bins"]
+                )
+
+            elif feature["encoding"] == "one_hot_discretized":
+                self.preprocessors[key] = OneHotDiscretizedBinning(
+                    n_bins=feature["n_bins"]
+                )
+
             elif feature["encoding"] == "int":
                 if feature["dtype"] == object:
                     self.preprocessors[key] = tf.keras.layers.StringLookup(
@@ -113,20 +125,35 @@ class Preprocessor(tf.keras.layers.Layer):
                         output_mode="one_hot"
                     )
                 elif feature["dtype"] == float:
-                    self.preprocessors[key] = OneHotBinning(
-                        n_bins=feature["n_bins"],
-                        task=self.task,
-                        tree_params=self.tree_params,
-                    )
+                    if "identifier" in feature:
+                        self.preprocessors[key] = OneHotBinning(
+                            n_bins=feature["n_bins"],
+                            task=self.task,
+                            tree_params=self.tree_params,
+                            identifier=feature["identifier"],
+                        )
+                    else:
+                        self.preprocessors[key] = OneHotBinning(
+                            n_bins=feature["n_bins"],
+                            task=self.task,
+                            tree_params=self.tree_params,
+                        )
                 elif np.issubdtype(feature["dtype"], np.integer):
                     self.preprocessors[key] = NoPreprocessingCatLayer(type="one_hot")
 
             elif feature["encoding"] == "PLE":
-                self.preprocessors[key] = PLE(
-                    n_bins=feature["n_bins"],
-                    task=self.task,
-                    tree_params=self.tree_params,
-                )
+                if "identifier" in feature:
+                    self.preprocessors[key] = PLE(
+                        n_bins=feature["n_bins"],
+                        task=self.task,
+                        tree_params=self.tree_params,
+                    )
+                else:
+                    self.preprocessors[key] = PLE(
+                        n_bins=feature["n_bins"],
+                        task=self.task,
+                        tree_params=self.tree_params,
+                    )
 
             else:
                 self.preprocessors[key] = NoPreprocessingLayer()
@@ -262,6 +289,8 @@ class DataModule:
             None,
             "int",
             "one_hot",
+            "one_hot_constant",
+            "one_hot_discretized",
             "PLE",
             "normalized",
             "min_max",
@@ -284,7 +313,12 @@ class DataModule:
         self.tree_params = tree_params
         self.preprocessing_called = False
 
-        self.encoder = Preprocessor(feature_dictionary, target_name, task, tree_params)
+        self.encoder = Preprocessor(
+            feature_dictionary,
+            target_name,
+            task,
+            tree_params,
+        )
 
     def _get_info(self):
         """
@@ -341,7 +375,11 @@ class DataModule:
         return self.plotting_dataset, plotting_data
 
     def preprocess(
-        self, validation_split=0.2, test_split=None, batch_size=1024, shuffle=True
+        self,
+        validation_split=0.2,
+        test_split=None,
+        batch_size=1024,
+        shuffle=True,
     ):
         """
         Perform data preprocessing and create TensorFlow datasets for training, validation, and testing.
@@ -398,6 +436,71 @@ class DataModule:
             self.training_dataset = self.training_dataset.prefetch(batch_size)
             self.validation_dataset = None
             self.test_dataset = None
+
+    def _generate_plotting_data_dense(self, num_samples=1000, identifier="UNK"):
+        """
+        Generates data for plotting purposes.
+
+        Args:
+            df (pd.DataFrame): Original data as a Pandas DataFrame.
+            num_samples (int): Number of samples to generate.
+            new_data (dict, optional): Additional data to include (default is {}).
+
+        Returns:
+            pd.DataFrame: A Pandas DataFrame containing generated data.
+
+        """
+
+        if not self.preprocessing_called:
+            raise RuntimeError(
+                "call_first_function must be called before call_second_function"
+            )
+
+        plotting_data = generate_plotting_data(self.data, num_samples)
+
+        datasets = {}
+
+        plotting_labels = plotting_data.pop(self.target_name)
+        for key, feature in tqdm(plotting_data.items()):
+            dataset = {}
+            if key == self.target_name:
+                pass
+            try:
+                feature.shape[1]
+            except IndexError:
+                feature = np.expand_dims(feature, 1)
+
+            for col in self.data.columns:
+                if col == self.target_name:
+                    continue
+                elif col == key:
+                    encoded_feature = self.encoder.preprocessors[col](
+                        feature, identifier=None
+                    )
+
+                else:
+                    encoded_feature = self.encoder.preprocessors[col](
+                        feature, identifier=identifier
+                    )
+
+                    if encoded_feature.shape[0] == 1:
+                        encoded_feature = tf.transpose(encoded_feature)
+
+                dataset[col] = np.array(encoded_feature)
+
+            plotting_dataset = tf.data.Dataset.from_tensor_slices(
+                (dict(dataset), plotting_labels)
+            )
+
+            plotting_dataset = plotting_dataset.batch(1000)
+            plotting_dataset = plotting_dataset.prefetch(1000)
+
+            datasets[key] = plotting_dataset
+
+        return datasets, plotting_data
+
+
+##########################################
 
 
 def generate_plotting_data(df, num_samples, new_data={}):

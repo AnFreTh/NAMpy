@@ -7,7 +7,7 @@ from xDL.backend.basemodel import BaseModel
 from xDL.shapefuncs.transformer_encoder import FTTransformerEncoder
 from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
 import seaborn as sns
-
+from xDL.utils.graphing import generate_subplots
 import warnings
 
 # Filter out the specific warning by category
@@ -327,3 +327,55 @@ class FTTransformer(BaseModel):
         sns.heatmap(plotting_importances, annot=True, fmt=".2%", cbar=False, ax=axs[0])
         fig.colorbar(axs[0].collections[0], cax=axs[1])
         plt.show()
+
+    def plot_features(self):
+        # Get all columns except the target column
+        (
+            plotting_datasets,
+            plotting_data,
+        ) = self.datamodule._generate_plotting_data_dense()
+        columns_to_plot = [col for col in self.data.columns if col != self.y]
+
+        # Create a separate plot for each column (except target) and overlay predictions
+        for col in columns_to_plot:
+            preds = self.predict(plotting_datasets[col], verbose=0)
+            preds = preds["output"].squeeze()
+
+            fig, ax = plt.subplots()
+
+            ax.scatter(
+                self.data[col],
+                self.data[self.y],
+                s=2,
+                alpha=0.5,
+                color="cornflowerblue",
+            )
+
+            if col in self.CAT_FEATURES:
+                ax.scatter(
+                    plotting_data[col],
+                    preds,
+                    color="crimson",
+                    marker="x",
+                )
+            else:
+                ax.plot(
+                    plotting_data[col],
+                    preds - np.mean(preds),
+                    linewidth=2,
+                    color="crimson",
+                )
+
+            ax.hist(
+                self.data[col],
+                bins=30,
+                alpha=0.5,
+                color="green",
+                density=True,
+            )
+
+            ax.set_title(f"Plot for {col}")
+            ax.set_xlabel(col)
+            ax.set_ylabel("target")
+
+            plt.show()
