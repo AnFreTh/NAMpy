@@ -10,6 +10,7 @@ from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
 from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
 from xDL.shapefuncs.registry import ShapeFunctionRegistry
 import seaborn as sns
+import keras
 
 import warnings
 
@@ -81,7 +82,7 @@ class NATT(AdditiveBaseModel):
             training_dataset (tf.data.Dataset): training dataset containing the transformed inputs
             validation_dataset (tf.data.Dataset): validation dataset containing the transformed inputs
             plotting_dataset (tf.data.Dataset): dataset containing the transformed inputs adapted for creating the plots
-            inputs (dict): dictionary with all tf.keras.Inputs -> mapping from feature name to feature
+            inputs (dict): dictionary with all keras.Inputs -> mapping from feature name to feature
             input_dict (dict): dictionary containg all the model specification -> mapping from feature to network type, network size, name, input
             NUM_FEATURES (list): Convenience list with all numerical features
             CAT_FEATURES (list): Convenience list with all categorical features
@@ -153,11 +154,11 @@ class NATT(AdditiveBaseModel):
         self.identity_layer = IdentityLayer(out_activation)
 
         ####################################
-        self.output_layer = tf.keras.layers.Dense(
+        self.output_layer = keras.layers.Dense(
             1,
             "linear",
             use_bias=False,
-            kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.0001),
+            kernel_initializer=keras.initializers.RandomNormal(stddev=0.0001),
         )
 
         if self.fit_intercept:
@@ -210,7 +211,7 @@ class NATT(AdditiveBaseModel):
                 f"{net.name} -> {shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={shapefuncs[idx].output_dimension}"
             )
 
-        self.ln = tf.keras.layers.LayerNormalization()
+        self.ln = keras.layers.LayerNormalization()
 
     def _get_plotting_preds(self, training_data=False):
         """
@@ -257,7 +258,7 @@ class NATT(AdditiveBaseModel):
             outputs = [self.output_layer(x)]
             outputs += [network(inputs) for network in self.feature_nets]
 
-            summed_outputs = tf.keras.layers.Add()(outputs)
+            summed_outputs = keras.layers.Add()(outputs)
 
             # Manage the intercept:
             if self.fit_intercept:
@@ -277,7 +278,7 @@ class NATT(AdditiveBaseModel):
             self.ms = [self.output_layer(x)]
             self.ms += [network(inputs) for network in self.feature_nets]
 
-            x = tf.keras.layers.Add()(self.ms)
+            x = keras.layers.Add()(self.ms)
 
             output = self.identity_layer(x)
             return output

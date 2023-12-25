@@ -1,5 +1,7 @@
 # Helper funcs for building MLP on transformer output ([cls] token)
 import tensorflow as tf
+import keras
+import numpy as np
 
 
 def build_cls_mlp(input_dim, factors, dropout):
@@ -57,11 +59,32 @@ def build_shape_funcs(
     return tf.keras.Sequential(mlp_layers)
 
 
-def helper_normalization_net(input_list):
-    layer1 = tf.keras.layers.Concatenate()
-    layer2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+def get_random_features_initializer(initializer, shape):
+    """Returns Initializer object for random features."""
+    _SUPPORTED_RBF_KERNEL_TYPES = ["gaussian", "laplacian"]
 
-    x = layer1(input_list)
-    x = layer2(x)
+    def _get_cauchy_samples(loc, scale, shape):
+        probs = np.random.uniform(low=0.0, high=1.0, size=shape)
+        return loc + scale * np.tan(np.pi * (probs - 0.5))
 
-    return tf.keras.Model(inputs=input_list, outputs=x, name="helper_net")
+    random_features_initializer = initializer
+    if isinstance(initializer, str):
+        if initializer.lower() == "gaussian":
+            random_features_initializer = keras.initializers.RandomNormal(stddev=1.0)
+        elif initializer.lower() == "laplacian":
+            random_features_initializer = keras.initializers.Constant(
+                _get_cauchy_samples(loc=0.0, scale=1.0, shape=shape)
+            )
+
+        else:
+            raise ValueError(
+                f'Unsupported `kernel_initializer`: "{initializer}" '
+                f"Expected one of: {_SUPPORTED_RBF_KERNEL_TYPES}"
+            )
+    return random_features_initializer
+
+
+def get_default_scale(initializer, input_dim):
+    if isinstance(initializer, str) and initializer.lower() == "gaussian":
+        return np.sqrt(input_dim / 2.0)
+    return 1.0

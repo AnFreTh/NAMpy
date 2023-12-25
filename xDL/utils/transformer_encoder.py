@@ -1,16 +1,16 @@
 import tensorflow as tf
 from xDL.backend.transformerblock import TransformerBlock
 import pandas as pd
-from tensorflow.keras.layers import (
+from keras.layers import (
     Concatenate,
     Embedding,
     Flatten,
     LayerNormalization,
 )
-import keras.backend as K
+import keras
 
 
-class TransformerEncoder(tf.keras.Model):
+class TransformerEncoder(keras.Model):
     def __init__(
         self,
         categorical_features: list,
@@ -139,7 +139,7 @@ class TransformerEncoder(tf.keras.Model):
             return transformer_inputs
 
 
-class TabTransformerEncoder(tf.keras.Model):
+class TabTransformerEncoder(keras.Model):
     def __init__(
         self,
         categorical_features: list,
@@ -235,7 +235,7 @@ class TabTransformerEncoder(tf.keras.Model):
         return mlp_inputs
 
 
-class FTTransformerEncoder(tf.keras.Model):
+class FTTransformerEncoder(keras.Model):
     def __init__(
         self,
         categorical_features: list,
@@ -296,7 +296,7 @@ class FTTransformerEncoder(tf.keras.Model):
         self.embedded_concatenation = Concatenate(axis=1)
 
         self.num_embedding_layers = [
-            tf.keras.layers.Dense(self.embedding_dim, activation="relu", use_bias=False)
+            keras.layers.Dense(self.embedding_dim, activation="relu", use_bias=False)
             for _ in range(len(self.num_features))
         ]
 

@@ -1,12 +1,9 @@
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
-import pandas as pd
-import bisect
+import keras
 import re
 from sklearn.tree import _tree
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-from keras.utils import to_categorical
 
 
 def tree_to_code(tree, feature_names):
@@ -70,7 +67,7 @@ def tree_to_code(tree, feature_names):
     return my_list
 
 
-class PLE(tf.keras.layers.Layer):
+class PLE(keras.layers.Layer):
     """
     Perform Periodic Linear Encoding (PLE) for numerical feature binning using decision tree-based discretization.
 
@@ -166,7 +163,7 @@ class PLE(tf.keras.layers.Layer):
             return tf.cast(tf.convert_to_tensor(ple_encoded_feature), dtype=tf.float32)
 
 
-class OneHotBinning(tf.keras.layers.Layer):
+class OneHotBinning(keras.layers.Layer):
     def __init__(
         self, n_bins=20, tree_params={}, task="regression", conditions=None, **kwargs
     ):
@@ -206,7 +203,7 @@ class OneHotBinning(tf.keras.layers.Layer):
         self.conditions = tree_to_code(dt, ["feature"])
 
 
-class IntegerBinning(tf.keras.layers.Layer):
+class IntegerBinning(keras.layers.Layer):
     def __init__(
         self, n_bins=20, tree_params={}, task="regression", conditions=None, **kwargs
     ):

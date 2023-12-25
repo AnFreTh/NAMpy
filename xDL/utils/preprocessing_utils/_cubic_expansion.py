@@ -3,7 +3,7 @@ import bisect
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 import re
 from ._periodic_linear_encoding import tree_to_code
-import tensorflow as tf
+import keras
 
 
 def get_optimal_knots(feature, target, n_bins=20, tree_params={}, task="regression"):
@@ -34,7 +34,7 @@ def get_optimal_knots(feature, target, n_bins=20, tree_params={}, task="regressi
     return list(set(locations))
 
 
-class CubicExpansion(tf.keras.layers.Layer):
+class CubicExpansion(keras.layers.Layer):
     def __init__(self, num_knots, **kwargs):
         super(CubicExpansion, self).__init__(**kwargs)
         self.num_knots = num_knots

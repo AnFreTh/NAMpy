@@ -1,7 +1,7 @@
-import tensorflow as tf
+import keras
 
-from tensorflow.keras.activations import gelu
-from tensorflow.keras.layers import (
+from keras.activations import gelu
+from keras.layers import (
     Add,
     Dense,
     Dropout,
@@ -39,7 +39,7 @@ class TransformerBlock(Layer):
         )
         self.skip1 = Add()
         self.layernorm1 = LayerNormalization(epsilon=1e-6)
-        self.ffn = tf.keras.Sequential(
+        self.ffn = keras.Sequential(
             [
                 Dense(ff_dim, activation=gelu),
                 Dropout(ff_dropout),

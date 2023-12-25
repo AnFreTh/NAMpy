@@ -1,4 +1,4 @@
-import tensorflow as tf
+import keras
 
 
 class ShapeFunction:
@@ -47,4 +47,4 @@ class ShapeFunction:
         - tf.keras.Model: A Keras Model with the specified input and the output of the forward pass.
         """
         outputs = self.forward(inputs)
-        return tf.keras.Model(inputs=inputs, outputs=outputs, name=name)
+        return keras.Model(inputs=inputs, outputs=outputs, name=name)

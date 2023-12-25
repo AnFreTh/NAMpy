@@ -1,5 +1,6 @@
 import tensorflow as tf
 from keras.callbacks import *
+import keras
 from xDL.backend.basemodel import BaseModel
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -76,7 +77,7 @@ class FTTransformerLSS(BaseModel):
             training_dataset (tf.data.Dataset): training dataset containing the transformed inputs
             validation_dataset (tf.data.Dataset): validation dataset containing the transformed inputs
             plotting_dataset (tf.data.Dataset): dataset containing the transformed inputs adapted for creating the plots
-            inputs (dict): dictionary with all tf.keras.Inputs -> mapping from feature name to feature
+            inputs (dict): dictionary with all keras.Inputs -> mapping from feature name to feature
             input_dict (dict): dictionary containg all the model specification -> mapping from feature to network type, network size, name, input
             NUM_FEATURES (list): Convenience list with all numerical features
             CAT_FEATURES (list): Convenience list with all categorical features
@@ -158,12 +159,12 @@ class FTTransformerLSS(BaseModel):
 
         self.final_mlp = build_cls_mlp(mlp_input_dim, mlp_hidden_factors, ff_dropout)
 
-        self.output_layer = tf.keras.layers.Dense(
+        self.output_layer = keras.layers.Dense(
             self.family.dimension, activation="linear", use_bias=False
         )
 
         self.out_activation = output_activation
-        self.ln = tf.keras.layers.LayerNormalization()
+        self.ln = keras.layers.LayerNormalization()
 
     def NegativeLogLikelihood(self, y_true, y_hat):
         """Negative LogLIkelihood Loss function

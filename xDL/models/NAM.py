@@ -1,4 +1,5 @@
 import tensorflow as tf
+import keras
 from keras.layers import Add
 import pandas as pd
 import numpy as np
@@ -6,6 +7,7 @@ import matplotlib.pyplot as plt
 from xDL.backend.basemodel import AdditiveBaseModel
 from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
 from xDL.utils.graphing import generate_subplots
+from xDL.utils.helper_funcs import check_is_float_type
 import warnings
 from scipy.stats import ttest_ind
 from xDL.shapefuncs.registry import ShapeFunctionRegistry
@@ -55,12 +57,12 @@ class NAM(AdditiveBaseModel):
             val_split (float): The validation data split ratio.
             activation (str): The activation function for model layers.
             feature_nets (list): List of all the feature nets for the numerical features
-            output_layer (tf.keras.Layer). Convenience Layer that returns the input
+            output_layer (keras.Layer). Convenience Layer that returns the input
             classification (bool): If true, the output dimensions will be adjusted according to the number of classes
             training_dataset (tf.data.Dataset): training dataset containing the transformed inputs
             validation_dataset (tf.data.Dataset): validation dataset containing the transformed inputs
             plotting_dataset (tf.data.Dataset): dataset containing the transformed inputs adapted for creating the plots
-            inputs (dict): dictionary with all tf.keras.Inputs -> mapping from feature name to feature
+            inputs (dict): dictionary with all keras.Inputs -> mapping from feature name to feature
             input_dict (dict): dictionary containg all the model specification -> mapping from feature to network type, network size, name, input
             NUM_FEATURES (list): Convenience list with all numerical features
             CAT_FEATURES (list): Convenience list with all categorical features
@@ -138,7 +140,7 @@ class NAM(AdditiveBaseModel):
             )
 
         self.output_layer = IdentityLayer(activation=output_activation)
-        self.FeatureDropoutLayer = tf.keras.layers.Dropout(self.feature_dropout)
+        self.FeatureDropoutLayer = keras.layers.Dropout(self.feature_dropout)
 
     def call(self, inputs, training=False):
         """
@@ -161,7 +163,7 @@ class NAM(AdditiveBaseModel):
         if self.fit_intercept:
             summed_outputs = self.intercept_layer(summed_outputs)
         output = self.output_layer(summed_outputs)
-        return output
+        return tf.cast(output, dtype=tf.float64)
 
     def _get_training_preds(self, mean=True):
         """
@@ -240,10 +242,9 @@ class NAM(AdditiveBaseModel):
         for idx, ax in enumerate(axes.flat):
             try:
                 len(self.feature_nets[idx].input)
-                if (
-                    self.feature_nets[idx].input[0].dtype != float
-                    or self.feature_nets[idx].input[1].dtype != float
-                ):
+                if not check_is_float_type(
+                    self.feature_nets[idx].input[0]
+                ) or not check_is_float_type(self.feature_nets[idx].input[1]):
                     continue
                 else:
                     if len(self.feature_nets[idx].input) == 2:

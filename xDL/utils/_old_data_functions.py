@@ -7,6 +7,7 @@ from .preprocessing_utils._cubic_expansion import *
 from .preprocessing_utils._polynomial_expansion import *
 from .preprocessing_utils._minmax import *
 from .preprocessing_utils._helper import *
+import keras
 
 
 def df_to_dataset(
@@ -77,7 +78,7 @@ def df_to_dataset(
             ):
                 if value.dtype == object:
                     value = np.expand_dims(value, 1)
-                    lookup_class = tf.keras.layers.StringLookup
+                    lookup_class = keras.layers.StringLookup
                     # Create a lookup layer which will turn strings into integer indices
                     lookup = lookup_class(
                         output_mode=feature_information[key]["encoding"]
@@ -115,7 +116,7 @@ def df_to_dataset(
                     )
                     encoded_feature = expander.expand(value)
                 else:
-                    normalizer = tf.keras.layers.Normalization
+                    normalizer = keras.layers.Normalization
                     norm = normalizer()
                     norm.adapt(training_dataframe[key])
                     encoded_feature = tf.transpose(norm(value))

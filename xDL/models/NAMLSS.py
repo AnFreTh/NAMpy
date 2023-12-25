@@ -3,7 +3,7 @@ import tensorflow_probability as tfp
 import tensorflow as tf
 from keras.layers import Add
 from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
-import pandas as pd
+import keras
 import warnings
 from scipy.stats import ttest_ind
 from xDL.shapefuncs.registry import ShapeFunctionRegistry
@@ -54,11 +54,11 @@ class NAMLSS(AdditiveBaseModel):
             val_split (float): The validation data split ratio.
             activation (str): The activation function for model layers.
             feature_nets (list): List of all the feature nets for the numerical features
-            output_layer (tf.keras.Layer). Convenience Layer that returns the input
+            output_layer (keras.Layer). Convenience Layer that returns the input
             training_dataset (tf.data.Dataset): training dataset containing the transformed inputs
             validation_dataset (tf.data.Dataset): validation dataset containing the transformed inputs
             plotting_dataset (tf.data.Dataset): dataset containing the transformed inputs adapted for creating the plots
-            inputs (dict): dictionary with all tf.keras.Inputs -> mapping from feature name to feature
+            inputs (dict): dictionary with all keras.Inputs -> mapping from feature name to feature
             input_dict (dict): dictionary containg all the model specification -> mapping from feature to network type, network size, name, input
             NUM_FEATURES (list): Convenience list with all numerical features
             CAT_FEATURES (list): Convenience list with all categorical features
@@ -164,7 +164,7 @@ class NAMLSS(AdditiveBaseModel):
             )
 
         self.output_layer = IdentityLayer(activation="linear")
-        self.FeatureDropoutLayer = tf.keras.layers.Dropout(self.feature_dropout)
+        self.FeatureDropoutLayer = keras.layers.Dropout(self.feature_dropout)
 
     def NegativeLogLikelihood(self, y_true, y_hat):
         """Negative LogLIkelihood Loss function

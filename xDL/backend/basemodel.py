@@ -1,6 +1,7 @@
 from xDL.utils.data_utils import DataModule
 from xDL.formulas.formulas import FormulaHandler
 from keras.callbacks import *
+import keras
 from scipy.stats import ttest_ind
 import pandas as pd
 import numpy as np
@@ -10,7 +11,7 @@ from scipy import stats
 import tensorflow as tf
 
 
-class AdditiveBaseModel(tf.keras.Model):
+class AdditiveBaseModel(keras.Model):
     def __init__(
         self,
         formula,
@@ -174,10 +175,10 @@ class AdditiveBaseModel(tf.keras.Model):
 
         self.inputs = {}
 
-        # Create tf.keras.Input for each feature in the dataset with appropriate shapes
+        # Create keras.Input for each feature in the dataset with appropriate shapes
         for inputs, labels in train_dataset.take(1):
             for feature_name, feature_value in inputs.items():
-                self.inputs[feature_name] = tf.keras.layers.Input(
+                self.inputs[feature_name] = keras.layers.Input(
                     shape=feature_value.shape[1:],
                     name=feature_name,
                 )
@@ -397,7 +398,7 @@ class AdditiveBaseModel(tf.keras.Model):
 ###############################################################################################
 
 
-class BaseModel(tf.keras.Model):
+class BaseModel(keras.Model):
     def __init__(
         self,
         data,
@@ -527,10 +528,10 @@ class BaseModel(tf.keras.Model):
 
         self.inputs = {}
 
-        # Create tf.keras.Input for each feature in the dataset with appropriate shapes
+        # Create keras.Input for each feature in the dataset with appropriate shapes
         for inputs, labels in train_dataset.take(1):
             for feature_name, feature_value in inputs.items():
-                self.inputs[feature_name] = tf.keras.Input(
+                self.inputs[feature_name] = keras.Input(
                     shape=feature_value.shape[1:],
                     name=feature_name,
                 )

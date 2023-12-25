@@ -6,12 +6,13 @@ from xDL.shapefuncs.helper_nets.layers import (
     IdentityLayer,
     GLULayer,
 )
-from tensorflow.keras.layers.experimental import RandomFourierFeatures
+from xDL.shapefuncs.helper_nets.layers import RandomFourierFeatures
 from keras.layers import Add
 from xDL.shapefuncs.baseshapefunction import ShapeFunction
+import keras
 
 
-class ResidualBlock(tf.keras.layers.Layer):
+class ResidualBlock(keras.layers.Layer):
     def __init__(self, units, activation="relu", dropout=0.5):
         """
         Constructor for the ResidualBlock class.
@@ -23,9 +24,9 @@ class ResidualBlock(tf.keras.layers.Layer):
         """
         super(ResidualBlock, self).__init__()
         super(ResidualBlock, self).__init__()
-        self.hidden1 = tf.keras.layers.Dense(units, activation=activation)
-        self.dropout = tf.keras.layers.Dropout(dropout)
-        self.hidden2 = tf.keras.layers.Dense(units, activation=activation)
+        self.hidden1 = keras.layers.Dense(units, activation=activation)
+        self.dropout = keras.layers.Dropout(dropout)
+        self.hidden2 = keras.layers.Dense(units, activation=activation)
 
     def call(self, inputs):
         """
@@ -65,7 +66,7 @@ class ResNet(ShapeFunction):
             self.hidden_dims = [128, 128]
         if not hasattr(self, "dropout"):
             self.dropout = 0.5
-        self.output_layer = tf.keras.layers.Dense(
+        self.output_layer = keras.layers.Dense(
             self.output_dimension, "linear", use_bias=False
         )
         self.concatenate = False
@@ -90,7 +91,7 @@ class ResNet(ShapeFunction):
         """
 
         if self.concatenate:
-            inputs = tf.keras.layers.Concatenate()(inputs)
+            inputs = keras.layers.Concatenate()(inputs)
         x = inputs
         for block in self.arch:
             x = block(x)
@@ -121,7 +122,7 @@ class MLP(ShapeFunction):
             self.hidden_dims = [128, 64, 64]
         if not hasattr(self, "dropout"):
             self.dropout = 0.5
-        self.output_layer = tf.keras.layers.Dense(
+        self.output_layer = keras.layers.Dense(
             self.output_dimension, "linear", use_bias=False
         )
         self.concatenate = False
@@ -130,8 +131,8 @@ class MLP(ShapeFunction):
 
         self.arch = []
         for dim in self.hidden_dims:
-            self.arch.append(tf.keras.layers.Dense(dim, activation=self.activation))
-            self.arch.append(tf.keras.layers.Dropout(self.dropout))
+            self.arch.append(keras.layers.Dense(dim, activation=self.activation))
+            self.arch.append(keras.layers.Dropout(self.dropout))
 
     def forward(self, inputs):
         """
@@ -145,7 +146,7 @@ class MLP(ShapeFunction):
         """
 
         if self.concatenate:
-            inputs = tf.keras.layers.Concatenate()(inputs)
+            inputs = keras.layers.Concatenate()(inputs)
         x = inputs
         for layer in self.arch:
             x = layer(x)
@@ -183,7 +184,7 @@ class CubicSplineNet(ShapeFunction):
         if not hasattr(self, "hidden_dims"):
             self.hidden_dims = [64]
 
-        self.output_layer = tf.keras.layers.Dense(
+        self.output_layer = keras.layers.Dense(
             self.output_dimension,
             "linear",
             use_bias=False,
@@ -195,7 +196,7 @@ class CubicSplineNet(ShapeFunction):
 
         self.arch = [AddWeightsLayer()]
         for dim in self.hidden_dims:
-            self.arch.append(tf.keras.layers.Dense(dim, activation=self.activation))
+            self.arch.append(keras.layers.Dense(dim, activation=self.activation))
 
     def forward(self, inputs):
         """
@@ -244,7 +245,7 @@ class PolynomialSplineNet(ShapeFunction):
         if not hasattr(self, "hidden_dims"):
             self.hidden_dims = [64]
 
-        self.output_layer = tf.keras.layers.Dense(
+        self.output_layer = keras.layers.Dense(
             self.output_dimension,
             "linear",
             use_bias=False,
@@ -256,7 +257,7 @@ class PolynomialSplineNet(ShapeFunction):
 
         self.arch = [AddWeightsLayer()]
         for dim in self.hidden_dims:
-            self.arch.append(tf.keras.layers.Dense(dim, activation=self.activation))
+            self.arch.append(keras.layers.Dense(dim, activation=self.activation))
 
     def forward(self, inputs):
         """
@@ -296,9 +297,7 @@ class LinearPredictor(ShapeFunction):
         if len(inputs) > 1:
             self.concatenate = True
 
-        self.arch = tf.keras.layers.Dense(
-            self.output_dimension, "linear", use_bias=False
-        )
+        self.arch = keras.layers.Dense(self.output_dimension, "linear", use_bias=False)
 
     def forward(self, inputs):
         """
@@ -311,7 +310,7 @@ class LinearPredictor(ShapeFunction):
         - tf.Tensor: The output tensor after processing through the LinearPredictor.
         """
         if self.concatenate:
-            inputs = tf.keras.layers.Concatenate()(inputs)
+            inputs = keras.layers.Concatenate()(inputs)
         return self.arch(inputs)
 
 
@@ -348,9 +347,9 @@ class RandomFourierNet(ShapeFunction):
             )
         ]
         for dim in self.hidden_dims[1:]:
-            self.arch.append(tf.keras.layers.Dense(dim, activation=self.activation))
+            self.arch.append(keras.layers.Dense(dim, activation=self.activation))
 
-        self.output_layer = tf.keras.layers.Dense(
+        self.output_layer = keras.layers.Dense(
             self.output_dimension, "linear", use_bias=False
         )
 
@@ -365,7 +364,7 @@ class RandomFourierNet(ShapeFunction):
         - tf.Tensor: The output tensor after processing through the RandomFourierNet.
         """
         if self.concatenate:
-            inputs = tf.keras.layers.Concatenate()(inputs)
+            inputs = keras.layers.Concatenate()(inputs)
         x = inputs
         for layer in self.arch:
             x = layer(x)
@@ -407,7 +406,7 @@ class ConstantWeightNet(ShapeFunction):
         - tf.Tensor: The output tensor after processing through the ConstantWeightNet.
         """
         if self.concatenate:
-            inputs = tf.keras.layers.Concatenate()(inputs)
+            inputs = keras.layers.Concatenate()(inputs)
         return self.arch(inputs)
 
 
@@ -446,13 +445,13 @@ class Transformer(ShapeFunction):
 
     def forward(self, inputs):
         if self.encoding == "PLE":
-            embeddings = tf.keras.layers.Dense(self.embedding_dim, activation="relu")(
+            embeddings = keras.layers.Dense(self.embedding_dim, activation="relu")(
                 inputs
             )
             embeddings = tf.expand_dims(embeddings, axis=1, name="dimension_expansion")
 
         else:
-            embeddings = tf.keras.layers.Embedding(
+            embeddings = keras.layers.Embedding(
                 input_dim=self.num_categories, output_dim=self.embedding_dim
             )(inputs)
 
@@ -479,12 +478,12 @@ class Transformer(ShapeFunction):
 #        num_categories = param_dict["n_bins"] + 1
 #
 #    if param_dict["encoding"] == "PLE":
-#        embeddings = tf.keras.layers.Dense(embedding_dim, activation="relu")(inputs)
+#        embeddings = keras.layers.Dense(embedding_dim, activation="relu")(inputs)
 #        embeddings = tf.expand_dims(embeddings, axis=1, name="dimension_expansion")
 #        print(embeddings.shape)
 #
 #    else:
-#        embeddings = tf.keras.layers.Embedding(
+#        embeddings = keras.layers.Embedding(
 #            input_dim=num_categories, output_dim=embedding_dim
 #        )(inputs)
 #
@@ -500,11 +499,11 @@ class Transformer(ShapeFunction):
 #            explainable=False,
 #        )(embeddings)
 #
-#    embeddings = tf.keras.layers.Flatten()(embeddings)
-#    embeddings = tf.keras.layers.Dense(128, activation="relu")(embeddings)
-#    x = tf.keras.layers.Dense(output_dimension, use_bias=False, activation="linear")(
+#    embeddings = keras.layers.Flatten()(embeddings)
+#    embeddings = keras.layers.Dense(128, activation="relu")(embeddings)
+#    x = keras.layers.Dense(output_dimension, use_bias=False, activation="linear")(
 #        embeddings
 #    )
-#    model = tf.keras.Model(inputs=inputs, outputs=x, name=name)
+#    model = keras.Model(inputs=inputs, outputs=x, name=name)
 #    model.reset_states()
 #    return model

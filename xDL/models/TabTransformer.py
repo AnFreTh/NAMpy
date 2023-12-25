@@ -1,10 +1,9 @@
 import tensorflow as tf
 from keras.callbacks import *
-from sklearn.model_selection import KFold
 from xDL.backend.basemodel import BaseModel
 from xDL.shapefuncs.transformer_encoder import TabTransformerEncoder
 from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
-
+import keras
 import warnings
 
 # Filter out the specific warning by category
@@ -67,7 +66,7 @@ class TabTransformer(BaseModel):
             training_dataset (tf.data.Dataset): training dataset containing the transformed inputs
             validation_dataset (tf.data.Dataset): validation dataset containing the transformed inputs
             plotting_dataset (tf.data.Dataset): dataset containing the transformed inputs adapted for creating the plots
-            inputs (dict): dictionary with all tf.keras.Inputs -> mapping from feature name to feature
+            inputs (dict): dictionary with all keras.Inputs -> mapping from feature name to feature
             input_dict (dict): dictionary containg all the model specification -> mapping from feature to network type, network size, name, input
             NUM_FEATURES (list): Convenience list with all numerical features
             CAT_FEATURES (list): Convenience list with all categorical features
@@ -115,7 +114,7 @@ class TabTransformer(BaseModel):
 
         self.final_mlp = build_cls_mlp(mlp_input_dim, mlp_hidden_factors, ff_dropout)
 
-        self.output_layer = tf.keras.layers.Dense(
+        self.output_layer = keras.layers.Dense(
             num_classes, activation=output_activation
         )
 

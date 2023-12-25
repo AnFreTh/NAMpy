@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+import keras
 import pandas as pd
 from .preprocessing_utils._periodic_linear_encoding import (
     PLE,
@@ -14,7 +15,7 @@ import numbers
 from tqdm import tqdm
 
 
-class Preprocessor(tf.keras.layers.Layer):
+class Preprocessor:
 
     """
     A custom TensorFlow Keras layer for preprocessing features in a dataset.
@@ -76,24 +77,26 @@ class Preprocessor(tf.keras.layers.Layer):
                 elif feature["Network"] == "PolynomialSplineNet":
                     self.preprocessors[key] = PolynomialExpansion(feature["degree"])
                 else:
-                    self.preprocessors[key] = tf.keras.layers.Normalization()
+                    self.preprocessors[key] = keras.layers.Normalization(
+                        dtype=feature["dtype"]
+                    )
 
             elif feature["encoding"] == "min_max":
                 self.preprocessors[key] = MinMaxEncodingLayer()
 
             elif feature["encoding"] == "hashing":
-                self.preprocessors[key] = tf.keras.layers.Hashing(
+                self.preprocessors[key] = keras.layers.Hashing(
                     num_bins=feature["n_bins"]
                 )
 
             elif feature["encoding"] == "discretized":
-                self.preprocessors[key] = tf.keras.layers.Discretization(
+                self.preprocessors[key] = keras.layers.Discretization(
                     num_bins=feature["n_bins"]
                 )
 
             elif feature["encoding"] == "int":
                 if feature["dtype"] == object:
-                    self.preprocessors[key] = tf.keras.layers.StringLookup(
+                    self.preprocessors[key] = keras.layers.StringLookup(
                         output_mode="int"
                     )
                 elif feature["dtype"] == float:
@@ -103,13 +106,13 @@ class Preprocessor(tf.keras.layers.Layer):
                         tree_params=self.tree_params,
                     )
                 elif np.issubdtype(feature["dtype"], np.integer):
-                    self.preprocessors[key] = tf.keras.layers.IntegerLookup(
+                    self.preprocessors[key] = keras.layers.IntegerLookup(
                         output_mode="int"
                     )  # NoPreprocessingLayer(type="int")
 
             elif feature["encoding"] == "one_hot":
                 if feature["dtype"] == object:
-                    self.preprocessors[key] = tf.keras.layers.StringLookup(
+                    self.preprocessors[key] = keras.layers.StringLookup(
                         output_mode="one_hot"
                     )
                 elif feature["dtype"] == float:
@@ -119,7 +122,9 @@ class Preprocessor(tf.keras.layers.Layer):
                         tree_params=self.tree_params,
                     )
                 elif np.issubdtype(feature["dtype"], np.integer):
-                    self.preprocessors[key] = NoPreprocessingCatLayer(type="one_hot")
+                    self.preprocessors[key] = keras.layers.IntegerLookup(
+                        output_mode="one_hot"
+                    )
 
             elif feature["encoding"] == "PLE":
                 self.preprocessors[key] = PLE(
@@ -131,7 +136,7 @@ class Preprocessor(tf.keras.layers.Layer):
             else:
                 self.preprocessors[key] = NoPreprocessingLayer()
 
-    def call(self, data, target):
+    def preprocess(self, data, target):
         """
         Preprocess the input data according to the specified preprocessing methods.
 
@@ -148,7 +153,9 @@ class Preprocessor(tf.keras.layers.Layer):
 
         dataset = {}
         print("--- Preprocessing ---")
+
         for key, feature in tqdm(data.items()):
+            print(key, feature.dtype)
             if key == self.target_name:
                 continue
                 # get data in correct shape
@@ -169,6 +176,7 @@ class Preprocessor(tf.keras.layers.Layer):
                     )
 
             encoded_feature = self.preprocessors[key](feature)
+
             if encoded_feature.shape[0] == 1:
                 encoded_feature = tf.transpose(encoded_feature)
             dataset[key] = np.array(encoded_feature)
@@ -361,7 +369,7 @@ class DataModule:
         self.batch_size = batch_size
         self.shuffle = shuffle
 
-        self.dataset = self.encoder(self.data, self.labels)
+        self.dataset = self.encoder.preprocess(self.data, self.labels)
         self.dataset = tf.data.Dataset.from_tensor_slices(
             (dict(self.dataset), self.labels)
         )

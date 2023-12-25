@@ -1,7 +1,7 @@
-import tensorflow as tf
+import keras
 
 
-class MinMaxEncodingLayer(tf.keras.layers.Layer):
+class MinMaxEncodingLayer(keras.layers.Layer):
     """
     Custom Keras layer for min-max scaling of input data.
 

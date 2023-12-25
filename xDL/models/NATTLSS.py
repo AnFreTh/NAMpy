@@ -11,6 +11,7 @@ from xDL.shapefuncs.registry import ShapeFunctionRegistry
 from xDL.backend.families import *
 import warnings
 import seaborn as sns
+import keras
 
 # Filter out the specific warning by category
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -79,7 +80,7 @@ class NATTLSS(AdditiveBaseModel):
             training_dataset (tf.data.Dataset): training dataset containing the transformed inputs
             validation_dataset (tf.data.Dataset): validation dataset containing the transformed inputs
             plotting_dataset (tf.data.Dataset): dataset containing the transformed inputs adapted for creating the plots
-            inputs (dict): dictionary with all tf.keras.Inputs -> mapping from feature name to feature
+            inputs (dict): dictionary with all keras.Inputs -> mapping from feature name to feature
             input_dict (dict): dictionary containg all the model specification -> mapping from feature to network type, network size, name, input
             NUM_FEATURES (list): Convenience list with all numerical features
             CAT_FEATURES (list): Convenience list with all categorical features
@@ -173,7 +174,7 @@ class NATTLSS(AdditiveBaseModel):
         self.mlp_final = build_cls_mlp(mlp_input_dim, mlp_hidden_factors, ff_dropout)
 
         ####################################
-        self.output_layer = tf.keras.layers.Dense(
+        self.output_layer = keras.layers.Dense(
             self.family.dimension, "linear", use_bias=False
         )
 
@@ -230,8 +231,8 @@ class NATTLSS(AdditiveBaseModel):
                 f"{net.name} -> {shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={self.family.dimension}"
             )
 
-        self.ln = tf.keras.layers.LayerNormalization()
-        self.FeatureDropoutLayer = tf.keras.layers.Dropout(self.feature_dropout)
+        self.ln = keras.layers.LayerNormalization()
+        self.FeatureDropoutLayer = keras.layers.Dropout(self.feature_dropout)
         self.identity_layer = IdentityLayer(activation="linear")
 
     def NegativeLogLikelihood(self, y_true, y_hat):
@@ -292,7 +293,7 @@ class NATTLSS(AdditiveBaseModel):
 
             if training:
                 outputs = [self.FeatureDropoutLayer(output) for output in outputs]
-            summed_outputs = tf.keras.layers.Add()(outputs)
+            summed_outputs = keras.layers.Add()(outputs)
 
             # Manage the intercept:
             if self.fit_intercept:

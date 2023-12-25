@@ -1,8 +1,8 @@
 import numpy as np
-import tensorflow as tf
+import keras
 
 
-class PolynomialExpansion(tf.keras.layers.Layer):
+class PolynomialExpansion(keras.layers.Layer):
     """
     Polynomial expansion utility for feature transformation.
 
