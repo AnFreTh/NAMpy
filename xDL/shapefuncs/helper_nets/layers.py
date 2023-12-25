@@ -1,5 +1,6 @@
 from tensorflow.keras.layers import Layer
 import tensorflow as tf
+import numpy as np
 
 
 class AddWeightsLayer(tf.keras.layers.Layer):
@@ -177,3 +178,18 @@ class GLULayer(tf.keras.layers.Layer):
         x = self.bn(x, training=training)
         x = tf.math.multiply(x[:, : self.units], tf.nn.sigmoid(x[:, self.units :]))
         return x
+
+
+class RandomMaskingLayer(tf.keras.layers.Layer):
+    def __init__(self, mask_token=0, mask_prob=0.2, masking="random"):
+        super(RandomMaskingLayer, self).__init__()
+        self.mask_token = mask_token
+        self.mask_prob = mask_prob
+        self.masking = masking
+
+    def call(self, inputs):
+        mask = np.random.choice([0, 1], p=[self.mask_prob, 1 - self.mask_prob])
+        # Generate a random mask
+
+        # Apply mask - replace with mask_token where mask is True
+        return inputs * mask

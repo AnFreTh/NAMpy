@@ -105,14 +105,18 @@ class FTTransformer(BaseModel):
 
         num_classes = num_classes
 
-        num_categories = [len(data[cat].unique()) + 1 for cat in self.CAT_FEATURES]
         numeric_categories = []
+        num_categories = [len(data[cat].unique()) + 1 for cat in self.CAT_FEATURES]
         for key in self.NUM_FEATURES:
             if num_encoding == "PLE":
                 n_categories = n_bins_num
                 # (
                 #    next(iter(self.training_dataset))[0][key].numpy().shape[1]
                 # )
+            elif num_encoding == "int":
+                self.CAT_FEATURES.append(key)
+                self.NUM_FEATURES.remove(key)
+                n_categories = n_bins_num
             else:
                 n_categories = n_bins_num  # next(iter(self.training_dataset))[0][key].numpy().max()
 
@@ -149,9 +153,9 @@ class FTTransformer(BaseModel):
         self.out_activation = output_activation
         self.ln = tf.keras.layers.LayerNormalization()
 
-    def call(self, inputs):
+    def call(self, inputs, training=True):
         if self.encoder.explainable:
-            x, expl = self.encoder(inputs)
+            x, expl = self.encoder(inputs, training)
 
             x = self.ln(x[:, 0, :])
 

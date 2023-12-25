@@ -226,7 +226,7 @@ class NAM(AdditiveBaseModel):
         preds = [net.predict(dataset, verbose=0) for net in self.feature_nets]
         return preds
 
-    def plot(self):
+    def plot(self, datapoints=True, hist=True):
         """
         Plot the model's predictions.
         """
@@ -292,13 +292,15 @@ class NAM(AdditiveBaseModel):
                             extend="both",
                             levels=25,
                         )
-                        ax.scatter(
-                            self.data[self.feature_nets[idx].input[0].name],
-                            self.data[self.feature_nets[idx].input[1].name],
-                            c="black",
-                            label="Scatter Points",
-                            s=5,
-                        )
+
+                        if datapoints:
+                            ax.scatter(
+                                self.data[self.feature_nets[idx].input[0].name],
+                                self.data[self.feature_nets[idx].input[1].name],
+                                c="black",
+                                label="Scatter Points",
+                                s=5,
+                            )
 
                         plt.colorbar(cs, label="Predictions")
                         ax.set_xlabel(self.feature_nets[idx].input[0].name)
@@ -308,13 +310,14 @@ class NAM(AdditiveBaseModel):
 
             except TypeError:
                 # Scatter plot of training data
-                ax.scatter(
-                    self.data[self.feature_nets[idx].name],
-                    self.data[self.y],  # - np.mean(self.data[self.y]),
-                    s=2,
-                    alpha=0.5,
-                    color="cornflowerblue",
-                )
+                if datapoints:
+                    ax.scatter(
+                        self.data[self.feature_nets[idx].name],
+                        self.data[self.y] - np.mean(self.data[self.y]),
+                        s=2,
+                        alpha=0.5,
+                        color="cornflowerblue",
+                    )
                 # Line plot of predictions
                 if self.feature_nets[idx].name in self.CAT_FEATURES:
                     ax.scatter(
@@ -332,13 +335,14 @@ class NAM(AdditiveBaseModel):
                         color="crimson",
                     )
                 # Data density histogram
-                ax.hist(
-                    self.data[self.feature_nets[idx].name],
-                    bins=30,
-                    alpha=0.5,
-                    color="green",
-                    density=True,
-                )
+                if hist:
+                    ax.hist(
+                        self.data[self.feature_nets[idx].name],
+                        bins=30,
+                        alpha=0.5,
+                        color="green",
+                        density=True,
+                    )
                 ax.set_ylabel(self.y)
                 ax.set_xlabel(self.feature_nets[idx].name)
 

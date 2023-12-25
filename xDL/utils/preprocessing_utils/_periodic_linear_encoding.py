@@ -356,7 +356,7 @@ class IntegerBinning(tf.keras.layers.Layer):
     def build(self, input_shape):
         super(IntegerBinning, self).build(input_shape)
 
-    def call(self, feature):
+    def call(self, feature, identifier=None):
         if feature.shape == (feature.shape[0], 1):
             feature = np.squeeze(feature, axis=1)
         else:
@@ -370,9 +370,12 @@ class IntegerBinning(tf.keras.layers.Layer):
             tf.reduce_sum(tf.stack(result_list, axis=1), axis=1), axis=-1
         )
 
-        encoded_feature = tf.cast(encoded_feature, dtype=tf.int64)
+        if identifier == "UNK":
+            encoded_feature = np.zeros((len(feature), 1))
 
-        return encoded_feature
+        # encoded_feature = tf.cast(encoded_feature, dtype=tf.int64)
+
+        return tf.cast(encoded_feature, dtype=tf.int64)
 
     def adapt(self, feature, target):
         if self.task == "regression":

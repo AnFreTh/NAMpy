@@ -57,10 +57,10 @@ class FormulaHandler:
 
         if "+1" in my_string:
             intercept = True
-            formula = formula.split("+")[1]
+            formula = formula.split("+1")[1]
         elif "-1" in my_string:
             intercept = False
-            formula = formula.split("-")[1]
+            formula = formula.split("-1")[1]
         else:
             print(
                 "please specify whether you want an intercept or not via '+1' or '-1'"
@@ -74,7 +74,9 @@ class FormulaHandler:
         for item in split_formula:
             matches = re.findall(r"\((\w+)", item)
             matches = [match for match in matches if match in self.data.columns]
-            terms.append(matches)
+            a = ["" in self.data.columns]
+            if len(matches) > 0:
+                terms.append(matches)
 
         feature_names = [item for sublist in terms for item in sublist]
         terms = [":".join(term) for term in terms]
