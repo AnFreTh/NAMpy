@@ -383,7 +383,7 @@ class MaskedFTTransformerEncoder(tf.keras.Model):
         explainable: bool = True,
         data: pd.DataFrame = None,
         masking: str = "random",
-        mask_prob: float = 0.2,
+        mask_prob: float = 0.5,
     ):
         """TabTransformer Tensorflow Model
         Args:

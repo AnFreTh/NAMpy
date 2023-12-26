@@ -181,15 +181,30 @@ class GLULayer(tf.keras.layers.Layer):
 
 
 class RandomMaskingLayer(tf.keras.layers.Layer):
-    def __init__(self, mask_token=0, mask_prob=0.2, masking="random"):
+    def __init__(self, mask_token=0, mask_prob=0.5, masking="random_all"):
         super(RandomMaskingLayer, self).__init__()
         self.mask_token = mask_token
         self.mask_prob = mask_prob
         self.masking = masking
+        self.counter = 0
 
     def call(self, inputs):
-        mask = np.random.choice([0, 1], p=[self.mask_prob, 1 - self.mask_prob])
-        # Generate a random mask
+        self.counter += 1
+        if self.counter % 10 == 0:
+            print("increasing masking prob")
+            self.mask_prob += 0.05
+        if self.mask_prob > 0.9:
+            self.mask_prob = 0.9
 
-        # Apply mask - replace with mask_token where mask is True
+        if self.masking == "random_all":
+            mask = np.random.choice(
+                [self.mask_token, 1], p=[self.mask_prob, 1 - self.mask_prob]
+            )
+        elif self.masking == "random":
+            mask_shape = tf.shape(inputs)
+            mask = tf.random.uniform(mask_shape) >= self.mask_prob
+
+            # Cast the mask to the same dtype as the inputs
+            mask = tf.cast(mask, dtype=inputs.dtype)
+
         return inputs * mask
