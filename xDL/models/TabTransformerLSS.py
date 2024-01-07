@@ -1,11 +1,12 @@
 import tensorflow as tf
 from keras.callbacks import *
 from sklearn.model_selection import KFold
-from xDL.backend.basemodel import BaseModel
+from xDL.backend.black_box_basemodel import BaseModel
 from xDL.shapefuncs.transformer_encoder import TabTransformerEncoder
 from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
 from xDL.backend.families import *
-
+from xDL.visuals.plot_distributions import visualize_distribution
+from xDL.visuals.analytics_plot import visual_analysis
 import warnings
 
 # Filter out the specific warning by category
@@ -22,7 +23,6 @@ class TabTransformerLSS(BaseModel):
         val_split=0.2,
         val_data=None,
         activation="relu",
-        classification=False,
         embedding_dim: int = 32,
         depth: int = 4,
         heads: int = 8,
@@ -31,9 +31,8 @@ class TabTransformerLSS(BaseModel):
         mlp_hidden_factors: list = [2, 4],
         hidden_units=[128, 128, 64],
         encoder=None,
-        output_activation=tf.math.sigmoid,
-        num_classes=1,
         binning_task="regression",
+        loss="nll",
     ):
         """
         Initialize the TabTransformer model as described in https://arxiv.org/pdf/2012.06678.pdf.
@@ -86,61 +85,146 @@ class TabTransformerLSS(BaseModel):
             binning_task=binning_task,
         )
 
-        if family == "Normal":
-            self.family = Normal()
-        elif family == "Logistic":
-            self.family = Logistic()
-        elif family == "InverseGamma":
-            self.family = InverseGamma()
-        elif family == "Poisson":
-            self.family = Poisson()
-        elif family == "JohnsonSU":
-            self.family = JohnsonSU()
-        elif family == "Gamma":
-            self.family = Gamma()
-        else:
-            raise ValueError(
-                "The family must be in ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', 'Gamma']. If you wish further distributions to be implemented please raise an Issue"
-            )
-
         self.val_data = val_data
         self.val_split = val_split
         self.activation = activation
         self.dropout = dropout
-        self.classification = classification
-        self.explainable = False
-        self.output_activation = output_activation
         self.hidden_units = hidden_units
+        self.TRANSFORMER_FEATURES = self.CAT_FEATURES + self.NUM_FEATURES
+        self.embedding_dim = embedding_dim
+        self.depth = depth
+        self.heads = heads
+        self.attn_dropout = attn_dropout
+        self.ff_dropout = ff_dropout
+        self.mlp_hidden_factors = mlp_hidden_factors
+        self.encoder = encoder
+        self.model_built = False
+        self.loss_func = loss
+        self.family = family
 
-        num_classes = num_classes
+    def build(self, input_shape):
+        """
+        Build the model. This method should be called before training the model.
+        """
+        if self.model_built:
+            return
 
-        # Initialise encoder
-        if encoder:
-            self.encoder = encoder
+        self._initialize_family()
+        self._initialize_transformer()
+        self._initialize_transformer_mlp()
+        self._initialize_output_layer()
+
+        self.model_built = True
+
+    def _initialize_transformer(self):
+        # Initialise
+        if self.encoder:
+            pass
         else:
             self.encoder = TabTransformerEncoder(
                 categorical_features=self.CAT_FEATURES,
                 numerical_features=self.NUM_FEATURES,
-                embedding_dim=embedding_dim,
-                depth=depth,
-                heads=heads,
-                attn_dropout=attn_dropout,
-                ff_dropout=ff_dropout,
+                embedding_dim=self.embedding_dim,
+                depth=self.depth,
+                heads=self.heads,
+                attn_dropout=self.attn_dropout,
+                ff_dropout=self.ff_dropout,
                 explainable=False,
                 data=self.data,
             )
 
-        mlp_input_dim = embedding_dim * len(self.encoder.categorical)
-        hidden_units = [mlp_input_dim // f for f in mlp_hidden_factors]
+    def _initialize_family(self):
+        if self.family not in [
+            "Normal",
+            "Logistic",
+            "InverseGamma",
+            "Poisson",
+            "JohnsonSU",
+            "Gamma",
+            "Beta",
+            "Exponential",
+            "StudentT",
+            "Bernoulli",
+            "Chi2",
+            "Laplace",
+            "Cauchy",
+            "Binomial",
+            "NegativeBinomial",
+            "Uniform",
+            "Weibull",
+        ]:
+            raise ValueError(
+                "The family must be in ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', "
+                "'Gamma', 'Beta', 'Exponential', 'StudentT', 'Bernoulli', 'Chi2', 'Laplace', 'Cauchy', "
+                "'Binomial', 'NegativeBinomial', 'Uniform', 'Weibull']. If you wish further distributions "
+                "to be implemented please raise an Issue"
+            )
 
-        self.final_mlp = build_cls_mlp(mlp_input_dim, mlp_hidden_factors, ff_dropout)
+        if self.family == "Normal":
+            self.family = Normal()
+        elif self.family == "Logistic":
+            self.family = Logistic()
+        elif self.family == "InverseGamma":
+            self.family = InverseGamma()
+        elif self.family == "Poisson":
+            self.family = Poisson()
+        elif self.family == "JohnsonSU":
+            self.family = JohnsonSU()
+        elif self.family == "Gamma":
+            self.family = Gamma()
+        elif self.family == "Beta":
+            self.family = Beta()
+        elif self.family == "Exponential":
+            self.family = Exponential()
+        elif self.family == "StudentT":
+            self.family = StudentT()
+        elif self.family == "Bernoulli":
+            self.family = Bernoulli()
+        elif self.family == "Chi2":
+            self.family = Chi2()
+        elif self.family == "Laplace":
+            self.family = Laplace()
+        elif self.family == "cauchy":
+            self.family = Cauchy()
+        elif self.family == "Binomial":
+            self.family = Binomial()
+        elif self.family == "NegativeBinomial":
+            self.family = NegativeBinomial()
+        elif self.family == "Uniform":
+            self.family = Uniform()
+        elif self.family == "Weibull":
+            self.family = Weibull()
+        else:
+            raise ValueError(
+                "Something went wrong with the specified Family. Please documentation or get in contact via an Issue"
+            )
 
-        self.output_layer = tf.keras.layers.Dense(
-            self.family.dimension, activation="linear", use_bias=False
+    def _initialize_transformer_mlp(self):
+        self.mlp_input_dim = self.embedding_dim * len(self.encoder.categorical)
+
+        self.transformer_mlp = build_cls_mlp(
+            self.mlp_input_dim, self.mlp_hidden_factors, self.ff_dropout
         )
 
-    def NegativeLogLikelihood(self, y_true, y_hat):
-        """Negative LogLIkelihood Loss function
+    def _initialize_output_layer(self):
+        self.output_layer = tf.keras.layers.Dense(
+            self.family.param_count,
+            use_bias=False,
+        )
+
+    def call(self, inputs):
+        x = self.encoder(inputs)
+        x = self.transformer_mlp(x)
+        output = self.output_layer(x)
+        p_y = tfp.layers.DistributionLambda(lambda x: self.family(x))(output)
+
+        return {
+            "output": p_y,
+            "params": output,
+        }
+
+    def Loss(self, y_true, y_hat):
+        """Builds the Loss function for NAMLSS, one of NegativeLogLikelihood or KKL-Divergence
 
         Args:
             y_true (_type_): True Labels
@@ -149,12 +233,19 @@ class TabTransformerLSS(BaseModel):
         Returns:
             _type_: negative Log likelihood of respective input distribution
         """
-        return -y_hat.log_prob(tf.cast(y_true, dtype=tf.float32))
+        # return self.family.negative_log_likelihood(y_true, y_hat)
+        if self.loss_func:
+            return -y_hat.log_prob(tf.cast(y_true, dtype=tf.float32))
+        elif self.loss_func == "kld":
+            return self.family.KL_divergence(y_true, y_hat)
+        else:
+            raise ValueError
 
-    def call(self, inputs):
-        x = self.encoder(inputs)
-        x = self.final_mlp(x)
-        output = self.output_layer(x)
-        p_y = tfp.layers.DistributionLambda(lambda x: self.family.forward(x))(output)
+    def plot_analysis(self):
+        dataset = self._get_dataset(self.data)
+        preds = self.predict(dataset)["params"]
+        visual_analysis(preds[:, 0], self.data[self.target_name])
 
-        return p_y
+    def plot_dist(self):
+        preds = self.predict(self.training_dataset)["params"]
+        visualize_distribution(self.family, preds)
