@@ -184,15 +184,11 @@ To build and train a model in xDL, follow these steps:
 
    .. code-block:: python
 
-      model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-    loss={"output":"mse"},
-    metrics={"output":"mae"},
-)
+      model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss={"output":"mse"}, metrics={"output":"mae"})
 
       model.fit(nam.training_dataset, epochs=100, validation_data=nam.validation_dataset)
 
-4. **Evaluate the Model:**
+1. **Evaluate the Model:**
 
    Evaluating the model is a crucial step to assess its performance. You can use the Keras API to calculate various metrics, including the test loss. This information is essential for understanding how well the model generalizes to unseen data.
 
