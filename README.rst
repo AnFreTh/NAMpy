@@ -179,10 +179,16 @@ To build and train a model in xDL, follow these steps:
 3. **Train the Model:**
 
    After initializing the model, you can train it using the Keras API. This step involves specifying an optimizer, loss function, and training settings. The training dataset is used for fitting the model, and the validation dataset helps monitor its performance during training.
+   Note, that xDL Models have dictionaries as outputs including not only the models overall predictions but often either the individual feature network predictions or attention weights/distributional parameter predictions. Thus the loss argument should be adapted.
+   For all models, except the disrtibutional models, a simple loss={"output": your_loss_metric} already suffices.
 
    .. code-block:: python
 
-      model.compile(optimizer=Adam(learning_rate=0.001), loss="mean_squared_error")
+      model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+    loss={"output":"mse"},
+    metrics={"output":"mae"},
+)
 
       model.fit(nam.training_dataset, epochs=100, validation_data=nam.validation_dataset)
 
@@ -203,6 +209,14 @@ To build and train a model in xDL, follow these steps:
       loss = nam.evaluate(test_dataset)
       print("Test Loss:", loss)
 
+   If you have fit an additive model, you can asses the individual feature predictions simply by using the .predict() method which will return a dictionary with key-value pairs corresponding to the input features and the feature nets predictions.
+
+   .. code-block:: python
+
+      test_dataset = model._get_dataset(test_df)
+      preds = nam.predict(test_dataset)
+      predictions_variable1 = preds["variable1"]
+
 
 ******************************
 Visualization and Interpretability
@@ -216,7 +230,7 @@ xDL offers multiple methods for visualization and interpretability, allowing you
 
    .. code-block:: python
 
-      model.analytics_plot()
+      model.plot_analysis()
 
 2. **Individual Feature Effects:**
 
@@ -226,9 +240,17 @@ xDL offers multiple methods for visualization and interpretability, allowing you
 
       model.plot()
 
+   Further, xDL offers plotly plots with increased usability.
+
+   .. code-block:: python
+
+      model.plot_all_effects(port=8053)
+
+   Here, all feature effects, including interaction terms are plotted and accessible via dropdown.
+
 3. **Distributional Parameters (NAMLSS Model):**
 
-   If you use the NAMLSS model and model all distributional parameters, `model.plot()` will visualize the effect of each feature on each distributional parameter. This is particularly useful when dealing with distributional regression.
+   If you use the NAMLSS model and model all distributional parameters, `model.plot()` will visualize the effect of each feature on each distributional parameter. This is particularly useful when dealing with distributional regression. `model.plot_dist` will visualize the fitted distribution and `model.plot_all_interactive()` will again create dash/plotly plots.
 
 4. **Attention Weights (Models with Attention Layers):**
 
