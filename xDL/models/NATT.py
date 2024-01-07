@@ -3,14 +3,24 @@ from keras.callbacks import *
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from xDL.backend.basemodel import AdditiveBaseModel
-from xDL.utils.graphing import generate_subplots
+from xDL.backend.interpretable_basemodel import AdditiveBaseModel
+from xDL.visuals.utils_graphing import generate_subplots
 from xDL.shapefuncs.transformer_encoder import TransformerEncoder
 from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
 from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
 from xDL.shapefuncs.registry import ShapeFunctionRegistry
 import seaborn as sns
-
+from xDL.visuals.plot_predictions import plot_additive_model
+from xDL.visuals.plot_interactive import (
+    visualize_regression_predictions,
+    visualize_additive_model,
+)
+from xDL.visuals.plot_importances import (
+    visualize_importances,
+    visualize_categorical_importances,
+    visualize_heatmap_importances,
+)
+from xDL.visuals.analytics_plot import visual_analysis
 import warnings
 
 # Filter out the specific warning by category
@@ -22,11 +32,9 @@ class NATT(AdditiveBaseModel):
         self,
         formula,
         data,
-        dropout=0.1,
         feature_dropout=0.001,
         val_split=0.2,
         val_data=None,
-        activation="relu",
         classification=False,
         embedding_dim: int = 32,
         depth: int = 4,
@@ -37,7 +45,7 @@ class NATT(AdditiveBaseModel):
         mlp_hidden_factors: list = [2, 4],
         encoder=None,
         explainable=True,
-        out_activation="linear",
+        output_activation="linear",
         binning_task="regression",
         batch_size=1024,
     ):
@@ -106,71 +114,115 @@ class NATT(AdditiveBaseModel):
             binning_task=binning_task,
         )
 
-        if not isinstance(formula, str):
-            raise ValueError(
-                "The formula must be a string. See patsy for documentation"
+        # Initialization of parameters
+        self.classification = classification
+        self.output_activation = output_activation
+        self.embedding_dim = embedding_dim
+        self.depth = depth
+        self.heads = heads
+        self.attn_dropout = attn_dropout
+        self.ff_dropout = ff_dropout
+        self.use_column_embedding = use_column_embedding
+        self.mlp_hidden_factors = mlp_hidden_factors
+        self.encoder = encoder
+        self.explainable = explainable
+        self.model_built = False
+
+    def build(self, input_shape):
+        """
+        Build the model. This method should be called before training the model.
+        """
+        if self.model_built:
+            return
+
+        num_classes = self.y.shape[1] if self.classification else 1
+
+        self._initialize_transformer()
+        self._initialize_transformer_mlp(num_classes)
+        self._initialize_shapefuncs(num_classes)
+        self._initialize_feature_nets()
+        self._initialize_output_layer()
+
+        self.model_built = True
+
+        self.print_network_architecture(num_classes)
+
+    def print_network_architecture(self, num_classes):
+        print("------------- Network architecture --------------")
+        print(
+            f"Transformer -> ({self.TRANSFORMER_FEATURES}, dims={self.embedding_dim}, depth={self.depth}, heads={self.heads}) -> MLP(input_dim={self.mlp_input_dim}) -> output dimension={num_classes}"
+        )
+        for idx, net in enumerate(self.feature_nets):
+            print(
+                f"{net.name} -> {self.shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={self.shapefuncs[idx].output_dimension}"
             )
 
-        self.formula = formula
-        self.val_data = val_data
-        self.val_split = val_split
-        self.feature_dropout = feature_dropout
-        self.classification = classification
-
-        if self.classification:
-            num_classes = self.y.shape[1]
-        else:
-            num_classes = 1
-
+    def _initialize_transformer(self):
         self.TRANSFORMER_FEATURES = []
         for key, feature in self.input_dict.items():
             if feature["Network"] == "Transformer":
                 self.TRANSFORMER_FEATURES += [input.name for input in feature["Input"]]
 
         # Initialise encoder
-        if encoder:
-            self.encoder = encoder
+        if self.encoder:
+            pass
         else:
             self.encoder = TransformerEncoder(
                 self.TRANSFORMER_FEATURES,
                 self.inputs,
-                embedding_dim,
-                depth,
-                heads,
-                attn_dropout,
-                ff_dropout,
-                use_column_embedding,
-                explainable=explainable,
+                self.embedding_dim,
+                self.depth,
+                self.heads,
+                self.attn_dropout,
+                self.ff_dropout,
+                self.use_column_embedding,
+                explainable=self.explainable,
                 data=self.data,
             )
 
-        mlp_input_dim = embedding_dim * len(self.encoder.categorical)
+        self.ln = tf.keras.layers.LayerNormalization()
+
+    def _initialize_transformer_mlp(self, num_classes):
+        self.mlp_input_dim = self.embedding_dim * len(self.encoder.categorical)
 
         self.transformer_mlp = build_cls_mlp(
-            mlp_input_dim, mlp_hidden_factors, ff_dropout
+            self.mlp_input_dim, self.mlp_hidden_factors, self.ff_dropout
         )
 
-        self.identity_layer = IdentityLayer(out_activation)
-
-        ####################################
-        self.output_layer = tf.keras.layers.Dense(
-            1,
+        self.mlp_output_layer = tf.keras.layers.Dense(
+            num_classes,
             "linear",
             use_bias=False,
             kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.0001),
         )
 
-        if self.fit_intercept:
-            self.intercept_layer = InterceptLayer()
+    def _initialize_feature_nets(self):
+        self.feature_nets = []
+        offset = 0
+        for idx, key in enumerate(self.input_dict.keys()):
+            if self.input_dict[key]["Network"] != "Transformer":
+                idx = idx - offset
+                if "<>" in key:
+                    keys = key.split("<>")
+                    inputs = [self.inputs[k] for k in keys]
+                    name = "_._".join(keys)
+                    my_model = self.shapefuncs[idx].build(inputs, name=name)
+                else:
+                    my_model = self.shapefuncs[idx].build(self.inputs[key], name=key)
 
-        shapefuncs = []
+                self.feature_nets.append(my_model)
+            else:
+                offset += 1
+
+    def _initialize_shapefuncs(self, num_classes):
+        self.shapefuncs = []
         for _, key in enumerate(self.input_dict):
             if self.input_dict[key]["Network"] != "Transformer":
                 class_reference = ShapeFunctionRegistry.get_class(
                     self.input_dict[key]["Network"]
                 )
                 if class_reference:
-                    shapefuncs.append(
+                    self.shapefuncs.append(
                         class_reference(
                             inputs=self.input_dict[key]["Input"],
                             param_dict=self.input_dict[key]["hyperparams"],
@@ -184,57 +236,11 @@ class NATT(AdditiveBaseModel):
                         f"{self.input_dict[key]['Network']} not found in the registry"
                     )
 
-        self.feature_nets = []
-        offset = 0
-        for idx, key in enumerate(self.input_dict.keys()):
-            if self.input_dict[key]["Network"] != "Transformer":
-                idx = idx - offset
-                if "<>" in key:
-                    keys = key.split("<>")
-                    inputs = [self.inputs[k] for k in keys]
-                    name = "_._".join(keys)
-                    my_model = shapefuncs[idx].build(inputs, name=name)
-                else:
-                    my_model = shapefuncs[idx].build(self.inputs[key], name=key)
-
-                self.feature_nets.append(my_model)
-            else:
-                offset += 1
-
-        print("------------- Network architecture --------------")
-        print(
-            f"Transformer -> ({self.TRANSFORMER_FEATURES}, dims={embedding_dim}, depth={depth}, heads={heads}) -> MLP(input_dim={mlp_input_dim}) -> output dimension={1}"
-        )
-        for idx, net in enumerate(self.feature_nets):
-            print(
-                f"{net.name} -> {shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={shapefuncs[idx].output_dimension}"
-            )
-
-        self.ln = tf.keras.layers.LayerNormalization()
-
-    def _get_plotting_preds(self, training_data=False):
-        """
-        Get predictions for plotting.
-
-        Args:
-            training_data (bool, optional): If True, get predictions for training data;
-            otherwise, get predictions for plotting data (default is False).
-
-        Returns:
-            list of numpy.ndarray: List of predictions for plotting.
-        """
-        if training_data:
-            preds = [
-                net.predict(self.training_dataset, verbose=0)
-                for net in self.feature_nets
-            ]
-        else:
-            preds = [
-                net.predict(self.plotting_dataset, verbose=0)
-                for net in self.feature_nets
-            ]
-
-        return preds
+    def _initialize_output_layer(self):
+        self.output_layer = IdentityLayer(activation=self.output_activation)
+        self.FeatureDropoutLayer = tf.keras.layers.Dropout(self.feature_dropout)
+        if self.fit_intercept:
+            self.intercept_layer = InterceptLayer()
 
     def call(self, inputs):
         """
@@ -254,21 +260,28 @@ class NATT(AdditiveBaseModel):
             x = self.ln(x[:, 0, :])
             x = self.transformer_mlp(x)
 
-            outputs = [self.output_layer(x)]
-            outputs += [network(inputs) for network in self.feature_nets]
+            outputs = [self.mlp_output_layer(x)]
+            feature_preds = [network(inputs) for network in self.feature_nets]
+            outputs += feature_preds
 
             summed_outputs = tf.keras.layers.Add()(outputs)
-
             # Manage the intercept:
             if self.fit_intercept:
                 summed_outputs = self.intercept_layer(summed_outputs)
-            output = self.identity_layer(summed_outputs)
+
+            output = self.output_layer(summed_outputs)
             att_testing_weights = self.encoder.att_weights
+
+            feature_preds_dict = {
+                f"{self.feature_nets[i].name}": pred
+                for i, pred in enumerate(feature_preds)
+            }
 
             return {
                 "output": output,
                 "importances": expl,
                 "att_weights": att_testing_weights,
+                **feature_preds_dict,
             }
         else:
             x = self.encoder(inputs)
@@ -279,278 +292,82 @@ class NATT(AdditiveBaseModel):
 
             x = tf.keras.layers.Add()(self.ms)
 
-            output = self.identity_layer(x)
+            output = self.output_layer(x)
             return output
 
-    def plot(self):
-        """
-        Plot the model's predictions.
-        """
+    def _get_plotting_preds(self, training_data=False):
+        if training_data:
+            return self.predict(self.training_dataset)
+        else:
+            preds = {}
 
-        # Generate subplots for visualization
-        fig, axes = generate_subplots(len(self.input_dict) - 1, figsize=(10, 12))
+            for net in self.feature_nets:
+                if net.name.count("_._") == 1:
+                    # Logic for nets with '_._' in their name
+                    min_feature0 = np.min(self.data[net.input[0].name])
+                    max_feature0 = np.max(self.data[net.input[0].name])
+                    min_feature1 = np.min(self.data[net.input[1].name])
+                    max_feature1 = np.max(self.data[net.input[1].name])
 
-        # Get plotting predictions
-        preds = self._get_plotting_preds()
+                    x1_values = np.linspace(min_feature0, max_feature0, 100)
+                    x2_values = np.linspace(min_feature1, max_feature1, 100)
+                    X1, X2 = np.meshgrid(x1_values, x2_values)
 
-        for idx, ax in enumerate(axes.flat):
-            try:
-                if (
-                    self.feature_nets[idx].input[0].dtype != float
-                    or self.feature_nets[idx].input[1].dtype != float
-                ):
-                    continue
+                    # Normalize features
+                    X1_normalized = (X1 - min_feature0) / (max_feature0 - min_feature0)
+                    X2_normalized = (X2 - min_feature1) / (max_feature1 - min_feature1)
+
+                    # Create tf.data.Dataset from normalized inputs
+                    grid_dataset = tf.data.Dataset.from_tensor_slices(
+                        {
+                            net.input[0].name: X1_normalized.flatten(),
+                            net.input[1].name: X2_normalized.flatten(),
+                        }
+                    ).batch(
+                        128
+                    )  # Batch size can be adjusted
+
+                    # Generate predictions
+                    predictions = []
+                    for batch in grid_dataset:
+                        batch_predictions = net(batch, training=False).numpy()
+                        predictions.extend(batch_predictions)
+
+                    preds[net.name] = {
+                        "predictions": np.array(predictions).reshape(X1.shape),
+                        "X1": X1,
+                        "X2": X2,
+                    }
                 else:
-                    if len(self.feature_nets[idx].input) == 2:
-                        min_feature0 = np.min(
-                            self.data[self.feature_nets[idx].input[0].name]
-                        )
-                        max_feature0 = np.max(
-                            self.data[self.feature_nets[idx].input[0].name]
-                        )
-                        min_feature1 = np.min(
-                            self.data[self.feature_nets[idx].input[1].name]
-                        )
-                        max_feature1 = np.max(
-                            self.data[self.feature_nets[idx].input[1].name]
-                        )
-                        x1_values = np.linspace(min_feature0, max_feature0, 100)
-                        x2_values = np.linspace(min_feature1, max_feature1, 100)
-                        X1, X2 = np.meshgrid(x1_values, x2_values)
-                        grid_dataset = tf.data.Dataset.from_tensor_slices((X1, X2))
+                    # Standard prediction logic
+                    predictions = []
+                    for inputs, _ in self.plotting_dataset:
+                        prediction = net(inputs, training=False).numpy()
+                        predictions.append(prediction)
 
-                        def add_feature_names_and_normalize(x1, x2):
-                            # Normalize Longitude and Latitude features
-                            feature0_normalized = (x1 - min_feature0) / (
-                                max_feature0 - min_feature0
-                            )
-                            feature1_normalized = (x2 - min_feature1) / (
-                                max_feature1 - min_feature1
-                            )
+                    preds[net.name] = np.concatenate(predictions, axis=0)
 
-                            return {
-                                self.feature_nets[idx]
-                                .input[0]
-                                .name: feature0_normalized,
-                                self.feature_nets[idx]
-                                .input[1]
-                                .name: feature1_normalized,
-                            }
+            return preds
 
-                        grid_dataset = grid_dataset.map(add_feature_names_and_normalize)
-                        predictions = self.feature_nets[idx].predict(grid_dataset)
+    def plot_single_effects(self, port=8050):
+        visualize_regression_predictions(self, port=port)
 
-                        cs = ax.contourf(
-                            X1,
-                            X2,
-                            predictions.reshape(X1.shape),
-                            extend="both",
-                            levels=25,
-                        )
-                        ax.scatter(
-                            self.data[self.feature_nets[idx].input[0].name],
-                            self.data[self.feature_nets[idx].input[1].name],
-                            c="black",
-                            label="Scatter Points",
-                            s=5,
-                        )
+    def plot_all_effects(self, port=8050):
+        visualize_additive_model(self, port=port)
 
-                        plt.colorbar(cs, label="Predictions")
-                        ax.set_xlabel(self.feature_nets[idx].input[0].name)
-                        ax.set_ylabel(self.feature_nets[idx].input[1].name)
-                    else:
-                        continue
-            except TypeError:
-                # Scatter plot of training data
-                ax.scatter(
-                    self.data[self.feature_nets[idx].name],
-                    self.data[self.y] - np.mean(self.data[self.y]),
-                    s=2,
-                    alpha=0.5,
-                    color="cornflowerblue",
-                )
-                # Line plot of predictions
-                if self.feature_nets[idx].name in self.CAT_FEATURES:
-                    ax.scatter(
-                        self.plotting_data[self.feature_nets[idx].name],
-                        preds[idx].squeeze(),
-                        linewidth=2,
-                        color="crimson",
-                    )
-                else:
-                    ax.plot(
-                        self.plotting_data[self.feature_nets[idx].name],
-                        preds[idx].squeeze(),
-                        linewidth=2,
-                        color="crimson",
-                    )
-                # Data density histogram
-                ax.hist(
-                    self.data[self.feature_nets[idx].name],
-                    bins=30,
-                    alpha=0.5,
-                    color="green",
-                    density=True,
-                )
-                ax.set_ylabel(self.y)
-                ax.set_xlabel(self.feature_nets[idx].name)
+    def plot(self, hist=True):
+        plot_additive_model(self, hist=hist)
 
-        plt.tight_layout(pad=0.4, w_pad=0.3)
-        plt.show()
-
-    def plot_importances(self, title="Importances"):
-        """
-        Plot feature importances.
-
-        Args:
-            all (bool, optional): If True, plot importances for all features; otherwise, plot average importances (default is False).
-            title (str, optional): Title of the plot (default is "Importances").
-        """
-
-        importances = self.predict(self.training_dataset, verbose=0)["importances"]
-
-        column_list = []
-        for i, feature in enumerate(self.TRANSFORMER_FEATURES):
-            column_list.extend([feature] * self.inputs[feature].shape[1])
-        importances = pd.DataFrame(importances[:, 1:], columns=column_list)
-        average_importances = []
-        for col_name in self.TRANSFORMER_FEATURES:
-            average_importances.append(importances.filter(like=col_name).sum(axis=1))
-        importances = pd.DataFrame(
-            {
-                column_name: column_data
-                for column_name, column_data in zip(
-                    self.TRANSFORMER_FEATURES, average_importances
-                )
-            }
-        )
-        imps_sorted = importances.mean().sort_values(ascending=False)
-        imps_sorted = imps_sorted / sum(imps_sorted)
-
-        plt.figure(figsize=(6, 4))
-        ax = imps_sorted.plot.bar()
-        for i, p in enumerate(ax.patches):
-            ax.annotate(
-                str(np.round(p.get_height(), 3)),
-                (p.get_x(), p.get_height() * 1.01),
-                rotation=90,
-                fontsize=12,
-            )
-            ax.annotate(
-                str(imps_sorted.index[i]),
-                (p.get_x() + 0.1, 0.01),
-                rotation=90,
-                fontsize=15,
-            )
-
-        ax.xaxis.set_tick_params(labelbottom=False)
-        plt.title(title)
-
-        plt.show()
+    def plot_importances(self, title="importances"):
+        visualize_importances(self, title)
 
     def plot_categorical_importances(self, title="Importances"):
-        """
-        Plot categorical feature importances.
+        visualize_categorical_importances(self, title)
 
-        Args:
-            title (str, optional): Title of the plot (default is "Importances").
-            n_top_categories (int, optional): Number of top categories to consider (default is 5).
-        """
+    def plot_heatmap_importances(self, cat1, cat2):
+        visualize_heatmap_importances(self, cat1, cat2)
 
-        dataset = self._get_dataset(self.data, shuffle=False)
-        importances = self.predict(dataset, verbose=0)["importances"]
-
-        column_list = []
-        for i, feature in enumerate(self.TRANSFORMER_FEATURES):
-            column_list.extend([feature] * self.inputs[feature].shape[1])
-        importances = pd.DataFrame(importances[:, 1:], columns=column_list)
-        average_importances = []
-        for col_name in self.TRANSFORMER_FEATURES:
-            average_importances.append(importances.filter(like=col_name).sum(axis=1))
-        importances = pd.DataFrame(
-            {
-                column_name: column_data
-                for column_name, column_data in zip(
-                    self.TRANSFORMER_FEATURES, average_importances
-                )
-            }
-        )
-        result_dict = {}
-        imps_sorted = importances.mean().sort_values(ascending=False)
-
-        for category in self.TRANSFORMER_FEATURES:
-            unique_vals = self.data[category].unique()
-            for val in unique_vals:
-                bsc = self.data[self.data[category] == val].index
-                imps_value = importances.loc[bsc.values][category].mean()
-                result_dict[val] = imps_value
-        sort_dict = dict(sorted(result_dict.items(), key=lambda item: item[1]))
-        sorted_df = pd.DataFrame([sort_dict])
-        sorted_df = sorted_df / np.sum(sorted_df, axis=1)[0]
-        imps_sorted = sorted_df.iloc[:, -5:].transpose()
-        plt.figure(figsize=(12, 4))
-        ax = imps_sorted.plot.bar(legend=None)
-        for p in ax.patches:
-            ax.annotate(
-                str(np.round(p.get_height(), 4)), (p.get_x(), p.get_height() * 1.01)
-            )
-        plt.title(title)
-        plt.show()
-
-    def plot_heatmap_importances(self, cat1, cat2, title="Importances"):
-        """
-        Plot heatmap of feature importances for two categorical features.
-
-        Args:
-            cat1 (str): Name of the first categorical feature.
-            cat2 (str): Name of the second categorical feature.
-            title (str, optional): Title of the plot (default is "Importances").
-        """
-
-        dataset = self._get_dataset(self.data, shuffle=False)
-        importances = self.predict(dataset, verbose=0)["importances"]
-
-        column_list = []
-        for i, feature in enumerate(self.TRANSFORMER_FEATURES):
-            column_list.extend([feature] * self.inputs[feature].shape[1])
-        importances = pd.DataFrame(importances[:, :-1], columns=column_list)
-        average_importances = []
-        for col_name in self.TRANSFORMER_FEATURES:
-            average_importances.append(importances.filter(like=col_name).sum(axis=1))
-        importances = pd.DataFrame(
-            {
-                column_name: column_data
-                for column_name, column_data in zip(
-                    self.TRANSFORMER_FEATURES, average_importances
-                )
-            }
-        )
-        result_dict = {}
-
-        unique_vals = self.data[cat1].unique()
-        for val1 in unique_vals:
-            temp_dict = {}
-            bsc1 = self.data[self.data[cat1] == val1].index
-            cat_df = self.data.loc[bsc1.values]
-
-            unique_vals2 = self.data[cat2].unique()
-            for val2 in unique_vals2:
-                bsc2 = cat_df[cat_df[cat2] == val2].index
-
-                cat_values = importances.loc[bsc1.values]
-                cat_values = importances.loc[bsc2.values]
-
-                temp_dict[val2] = cat_values[cat2].sum()
-
-            result_dict[val1] = temp_dict
-
-        plotting_importances = pd.DataFrame(result_dict) / np.sum(
-            pd.DataFrame(result_dict)
-        )
-        plotting_importances[plotting_importances == 0] = None
-        fig, axs = plt.subplots(
-            ncols=2, gridspec_kw=dict(width_ratios=[10, 0.5]), figsize=(4, 4)
-        )
-        sns.heatmap(plotting_importances, annot=True, fmt=".2%", cbar=False, ax=axs[0])
-        fig.colorbar(axs[0].collections[0], cax=axs[1])
-        plt.show()
+    def plot_analysis(self):
+        dataset = self._get_dataset(self.data)
+        preds = self.predict(dataset)["output"].squeeze()
+        visual_analysis(preds, self.data[self.target_name])

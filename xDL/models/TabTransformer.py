@@ -1,10 +1,10 @@
 import tensorflow as tf
 from keras.callbacks import *
 from sklearn.model_selection import KFold
-from xDL.backend.basemodel import BaseModel
+from xDL.backend.black_box_basemodel import BaseModel
 from xDL.shapefuncs.transformer_encoder import TabTransformerEncoder
 from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
-
+from xDL.visuals.analytics_plot import visual_analysis
 import warnings
 
 # Filter out the specific warning by category
@@ -84,6 +84,7 @@ class TabTransformer(BaseModel):
         )
 
         self.val_data = val_data
+        self.encoder = encoder
         self.val_split = val_split
         self.activation = activation
         self.dropout = dropout
@@ -91,37 +92,68 @@ class TabTransformer(BaseModel):
         self.explainable = False
         self.output_activation = output_activation
         self.hidden_units = hidden_units
-
+        self.embedding_dim = embedding_dim
+        self.depth = depth
+        self.heads = heads
+        self.attn_dropout = attn_dropout
+        self.ff_dropout = ff_dropout
+        self.mlp_hidden_factors = mlp_hidden_factors
         num_classes = num_classes
+        self.model_built = False
 
-        # Initialise encoder
-        if encoder:
-            self.encoder = encoder
+    def build(self, input_shape):
+        """
+        Build the model. This method should be called before training the model.
+        """
+        if self.model_built:
+            return
+
+        num_classes = self.y.shape[1] if self.classification else 1
+
+        self._initialize_transformer()
+        self._initialize_transformer_mlp()
+        self._initialize_output_layer(num_classes)
+
+        self.model_built = True
+
+    def _initialize_transformer(self):
+        # Initialise
+        if self.encoder:
+            pass
         else:
             self.encoder = TabTransformerEncoder(
                 categorical_features=self.CAT_FEATURES,
                 numerical_features=self.NUM_FEATURES,
-                embedding_dim=embedding_dim,
-                depth=depth,
-                heads=heads,
-                attn_dropout=attn_dropout,
-                ff_dropout=ff_dropout,
+                embedding_dim=self.embedding_dim,
+                depth=self.depth,
+                heads=self.heads,
+                attn_dropout=self.attn_dropout,
+                ff_dropout=self.ff_dropout,
                 explainable=False,
                 data=self.data,
             )
 
-        mlp_input_dim = embedding_dim * len(self.encoder.categorical)
-        hidden_units = [mlp_input_dim // f for f in mlp_hidden_factors]
+    def _initialize_transformer_mlp(self):
+        self.mlp_input_dim = self.embedding_dim * len(self.encoder.categorical)
 
-        self.final_mlp = build_cls_mlp(mlp_input_dim, mlp_hidden_factors, ff_dropout)
+        self.transformer_mlp = build_cls_mlp(
+            self.mlp_input_dim, self.mlp_hidden_factors, self.ff_dropout
+        )
 
+    def _initialize_output_layer(self, num_classes):
         self.output_layer = tf.keras.layers.Dense(
-            num_classes, activation=output_activation
+            num_classes,
+            self.output_activation,
         )
 
     def call(self, inputs):
         x = self.encoder(inputs)
-        x = self.final_mlp(x)
+        x = self.transformer_mlp(x)
         output = self.output_layer(x)
 
         return output
+
+    def plot_analysis(self):
+        dataset = self._get_dataset(self.data)
+        preds = self.predict(dataset).squeeze()
+        visual_analysis(preds, self.data[self.target_name])

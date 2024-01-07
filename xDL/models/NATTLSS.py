@@ -1,16 +1,20 @@
 import tensorflow as tf
 from keras.callbacks import *
-from xDL.backend.basemodel import AdditiveBaseModel
+from xDL.backend.interpretable_basemodel import AdditiveBaseModel
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 from xDL.shapefuncs.transformer_encoder import TransformerEncoder
 from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
 from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
 from xDL.shapefuncs.registry import ShapeFunctionRegistry
 from xDL.backend.families import *
 import warnings
-import seaborn as sns
+from xDL.visuals.plot_predictions import plot_additive_distributional_model
+from xDL.visuals.plot_importances import (
+    visualize_importances,
+    visualize_categorical_importances,
+    visualize_heatmap_importances,
+)
+from xDL.visuals.plot_distributions import visualize_distribution
 
 # Filter out the specific warning by category
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -37,6 +41,7 @@ class NATTLSS(AdditiveBaseModel):
         explainable=True,
         binning_task="regression",
         batch_size=1024,
+        loss="nll",
     ):
         """
         NATTLSS (Neural Adaptive Tabular Learning with Synthetic Sampling) model.
@@ -102,98 +107,168 @@ class NATTLSS(AdditiveBaseModel):
             binning_task=binning_task,
         )
 
-        if not isinstance(formula, str):
-            raise ValueError(
-                "The formula must be a string. See patsy for documentation"
+        # Initialization of parameters
+        self.embedding_dim = embedding_dim
+        self.depth = depth
+        self.heads = heads
+        self.attn_dropout = attn_dropout
+        self.ff_dropout = ff_dropout
+        self.use_column_embedding = use_column_embedding
+        self.mlp_hidden_factors = mlp_hidden_factors
+        self.encoder = encoder
+        self.explainable = explainable
+        self.model_built = False
+        self.family = family
+        self.loss_func = loss
+
+    def build(self, input_shape):
+        """
+        Build the model. This method should be called before training the model.
+        """
+        if self.model_built:
+            return
+
+        self._initialize_family()
+        self._initialize_transformer()
+        self._initialize_transformer_mlp()
+        self._initialize_shapefuncs()
+        self._initialize_feature_nets()
+        self._initialize_output_layer()
+
+        self.model_built = True
+
+        self.print_network_architecture(self.family.param_count)
+
+    def print_network_architecture(self, num_classes):
+        print("------------- Network architecture --------------")
+        print(
+            f"Transformer -> ({self.TRANSFORMER_FEATURES}, dims={self.embedding_dim}, depth={self.depth}, heads={self.heads}) -> MLP(input_dim={self.mlp_input_dim}) -> output dimension={num_classes}"
+        )
+        for idx, net in enumerate(self.feature_nets):
+            print(
+                f"{net.name} -> {self.shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={self.shapefuncs[idx].output_dimension}"
             )
 
-        if family not in [
+    def _initialize_family(self):
+        if self.family not in [
             "Normal",
             "Logistic",
             "InverseGamma",
             "Poisson",
             "JohnsonSU",
             "Gamma",
+            "Beta",
+            "Exponential",
+            "StudentT",
+            "Bernoulli",
+            "Chi2",
+            "Laplace",
+            "Cauchy",
+            "Binomial",
+            "NegativeBinomial",
+            "Uniform",
+            "Weibull",
         ]:
             raise ValueError(
-                "The family must be in ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', 'Gamma']. If you wish further distributions to be implemented please raise an Issue"
+                "The family must be in ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', "
+                "'Gamma', 'Beta', 'Exponential', 'StudentT', 'Bernoulli', 'Chi2', 'Laplace', 'Cauchy', "
+                "'Binomial', 'NegativeBinomial', 'Uniform', 'Weibull']. If you wish further distributions "
+                "to be implemented please raise an Issue"
             )
 
-        self.formula = formula
-
-        if family == "Normal":
+        if self.family == "Normal":
             self.family = Normal()
-        elif family == "Logistic":
+        elif self.family == "Logistic":
             self.family = Logistic()
-        elif family == "InverseGamma":
+        elif self.family == "InverseGamma":
             self.family = InverseGamma()
-        elif family == "Poisson":
+        elif self.family == "Poisson":
             self.family = Poisson()
-        elif family == "JohnsonSU":
+        elif self.family == "JohnsonSU":
             self.family = JohnsonSU()
-        elif family == "Gamma":
+        elif self.family == "Gamma":
             self.family = Gamma()
+        elif self.family == "Beta":
+            self.family = Beta()
+        elif self.family == "Exponential":
+            self.family = Exponential()
+        elif self.family == "StudentT":
+            self.family = StudentT()
+        elif self.family == "Bernoulli":
+            self.family = Bernoulli()
+        elif self.family == "Chi2":
+            self.family = Chi2()
+        elif self.family == "Laplace":
+            self.family = Laplace()
+        elif self.family == "cauchy":
+            self.family = Cauchy()
+        elif self.family == "Binomial":
+            self.family = Binomial()
+        elif self.family == "NegativeBinomial":
+            self.family = NegativeBinomial()
+        elif self.family == "Uniform":
+            self.family = Uniform()
+        elif self.family == "Weibull":
+            self.family = Weibull()
         else:
             raise ValueError(
-                "The family must be in ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', 'Gamma']. If you wish further distributions to be implemented please raise an Issue"
+                "Something went wrong with the specified Family. Please documentation or get in contact via an Issue"
             )
-        self.val_data = val_data
-        self.val_split = val_split
-        self.activation = activation
-        self.feature_dropout = feature_dropout
 
+    def _initialize_transformer(self):
         self.TRANSFORMER_FEATURES = []
         for key, feature in self.input_dict.items():
             if feature["Network"] == "Transformer":
                 self.TRANSFORMER_FEATURES += [input.name for input in feature["Input"]]
 
         # Initialise encoder
-        if encoder:
-            self.encoder = encoder
+        if self.encoder:
+            pass
         else:
             self.encoder = TransformerEncoder(
                 self.TRANSFORMER_FEATURES,
                 self.inputs,
-                embedding_dim,
-                depth,
-                heads,
-                attn_dropout,
-                ff_dropout,
-                use_column_embedding,
-                explainable=explainable,
+                self.embedding_dim,
+                self.depth,
+                self.heads,
+                self.attn_dropout,
+                self.ff_dropout,
+                self.use_column_embedding,
+                explainable=self.explainable,
                 data=self.data,
             )
 
-        mlp_input_dim = embedding_dim * len(self.encoder.categorical)
+        self.ln = tf.keras.layers.LayerNormalization()
+
+    def _initialize_transformer_mlp(self):
+        self.mlp_input_dim = self.embedding_dim * len(self.encoder.categorical)
 
         self.transformer_mlp = build_cls_mlp(
-            mlp_input_dim, mlp_hidden_factors, ff_dropout
-        )
-        # self.output_layer = Dense(out_dim, activation=out_activation)
-        self.mlp_final = build_cls_mlp(mlp_input_dim, mlp_hidden_factors, ff_dropout)
-
-        ####################################
-        self.output_layer = tf.keras.layers.Dense(
-            self.family.dimension, "linear", use_bias=False
+            self.mlp_input_dim, self.mlp_hidden_factors, self.ff_dropout
         )
 
-        if self.fit_intercept:
-            self.intercept_layer = InterceptLayer()
+        self.mlp_output_layer = tf.keras.layers.Dense(
+            self.family.param_count,
+            "linear",
+            use_bias=False,
+            kernel_initializer=tf.keras.initializers.RandomNormal(stddev=0.0001),
+        )
 
-        shapefuncs = []
+    def _initialize_shapefuncs(self):
+        self.shapefuncs = []
         for _, key in enumerate(self.input_dict):
             if self.input_dict[key]["Network"] != "Transformer":
                 class_reference = ShapeFunctionRegistry.get_class(
                     self.input_dict[key]["Network"]
                 )
                 if class_reference:
-                    shapefuncs.append(
+                    self.shapefuncs.append(
                         class_reference(
                             inputs=self.input_dict[key]["Input"],
                             param_dict=self.input_dict[key]["hyperparams"],
                             name=key,
                             identifier=key,
-                            output_dimension=self.family.dimension,
+                            output_dimension=self.family.param_count,
                         )
                     )
                 else:
@@ -201,6 +276,7 @@ class NATTLSS(AdditiveBaseModel):
                         f"{self.input_dict[key]['Network']} not found in the registry"
                     )
 
+    def _initialize_feature_nets(self):
         self.feature_nets = []
         offset = 0
         for idx, key in enumerate(self.input_dict.keys()):
@@ -210,32 +286,21 @@ class NATTLSS(AdditiveBaseModel):
                     keys = key.split("<>")
                     inputs = [self.inputs[k] for k in keys]
                     name = "_._".join(keys)
-                    my_model = shapefuncs[idx].build(inputs, name=name)
+                    my_model = self.shapefuncs[idx].build(inputs, name=name)
                 else:
-                    my_model = shapefuncs[idx].build(self.inputs[key], name=key)
+                    my_model = self.shapefuncs[idx].build(self.inputs[key], name=key)
 
                 self.feature_nets.append(my_model)
             else:
                 offset += 1
 
-        print("------------- Network architecture --------------")
-        print(
-            f"chosen distribution: {self.family._name}, distributional parameters: {self.family.param_names}"
-        )
-        print(
-            f"Transformer -> ({self.TRANSFORMER_FEATURES}, dims={embedding_dim}, depth={depth}, heads={heads}) -> MLP(input_dim={mlp_input_dim}) -> output dimension={self.family.dimension}"
-        )
-        for idx, net in enumerate(self.feature_nets):
-            print(
-                f"{net.name} -> {shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={self.family.dimension}"
-            )
-
-        self.ln = tf.keras.layers.LayerNormalization()
+    def _initialize_output_layer(self):
         self.FeatureDropoutLayer = tf.keras.layers.Dropout(self.feature_dropout)
-        self.identity_layer = IdentityLayer(activation="linear")
+        if self.fit_intercept:
+            self.intercept_layer = InterceptLayer()
 
-    def NegativeLogLikelihood(self, y_true, y_hat):
-        """Negative LogLIkelihood Loss function
+    def Loss(self, y_true, y_hat):
+        """Builds the Loss function for NAMLSS, one of NegativeLogLikelihood or KKL-Divergence
 
         Args:
             y_true (_type_): True Labels
@@ -244,7 +309,13 @@ class NATTLSS(AdditiveBaseModel):
         Returns:
             _type_: negative Log likelihood of respective input distribution
         """
-        return -y_hat.log_prob(tf.cast(y_true, dtype=tf.float32))
+        # return self.family.negative_log_likelihood(y_true, y_hat)
+        if self.loss_func:
+            return -y_hat.log_prob(tf.cast(y_true, dtype=tf.float32))
+        elif self.loss_func == "kld":
+            return self.family.KL_divergence(y_true, y_hat)
+        else:
+            raise ValueError
 
     def _get_plotting_preds(self, training_data=False):
         """
@@ -284,11 +355,11 @@ class NATTLSS(AdditiveBaseModel):
             x, expl = self.encoder(inputs)
 
             x = self.ln(x[:, 0, :])
-            x = self.mlp_final(x)
             x = self.transformer_mlp(x)
 
-            outputs = [self.output_layer(x)]
-            outputs += [network(inputs) for network in self.feature_nets]
+            outputs = [self.mlp_output_layer(x)]
+            feature_preds = [network(inputs) for network in self.feature_nets]
+            outputs += feature_preds
 
             if training:
                 outputs = [self.FeatureDropoutLayer(output) for output in outputs]
@@ -297,292 +368,99 @@ class NATTLSS(AdditiveBaseModel):
             # Manage the intercept:
             if self.fit_intercept:
                 summed_outputs = self.intercept_layer(summed_outputs)
-            output = self.identity_layer(summed_outputs)
 
             # Add probability Layer
-            p_y = tfp.layers.DistributionLambda(lambda x: self.family.forward(x))(
-                output
+
+            p_y = tfp.layers.DistributionLambda(lambda x: self.family(x))(
+                summed_outputs
             )
 
             att_testing_weights = self.encoder.att_weights
+
+            feature_preds_dict = {
+                f"{self.feature_nets[i].name}": pred
+                for i, pred in enumerate(feature_preds)
+            }
 
             return {
                 "output": p_y,
                 "importances": expl,
                 "att_weights": att_testing_weights,
+                "summed_output": summed_outputs,
+                **feature_preds_dict,
             }
         else:
             x = self.encoder(inputs)
-            x = self.mlp_final(x)
+            x = self.transformer_mlp(x)
             output = p_y
             return output
 
-    def plot(self):
-        """
-        Plot model predictions.
+    def _get_plotting_preds(self, training_data=False):
+        if training_data:
+            return self.predict(self.training_dataset)["output"]
+        else:
+            preds = {}
 
-        Returns:
-            None
-        """
-        fig, ax = plt.subplots(
-            len(self.input_dict) - 1, self.family.dimension, figsize=(10, 12)
-        )
+            for net in self.feature_nets:
+                if net.name.count("_._") == 1:
+                    # Logic for nets with '_._' in their name
+                    min_feature0 = np.min(self.data[net.input[0].name])
+                    max_feature0 = np.max(self.data[net.input[0].name])
+                    min_feature1 = np.min(self.data[net.input[1].name])
+                    max_feature1 = np.max(self.data[net.input[1].name])
 
-        preds = self._get_plotting_preds()
+                    x1_values = np.linspace(min_feature0, max_feature0, 100)
+                    x2_values = np.linspace(min_feature1, max_feature1, 100)
+                    X1, X2 = np.meshgrid(x1_values, x2_values)
 
-        for idx in range(len(self.input_dict) - 1):
-            try:
-                len(self.feature_nets[idx].input)
-                if (
-                    self.feature_nets[idx].input[0].dtype != float
-                    or self.feature_nets[idx].input[1].dtype != float
-                ):
-                    continue
+                    # Normalize features
+                    X1_normalized = (X1 - min_feature0) / (max_feature0 - min_feature0)
+                    X2_normalized = (X2 - min_feature1) / (max_feature1 - min_feature1)
+
+                    # Create tf.data.Dataset from normalized inputs
+                    grid_dataset = tf.data.Dataset.from_tensor_slices(
+                        {
+                            net.input[0].name: X1_normalized.flatten(),
+                            net.input[1].name: X2_normalized.flatten(),
+                        }
+                    ).batch(
+                        128
+                    )  # Batch size can be adjusted
+
+                    # Generate predictions
+                    predictions = []
+                    for batch in grid_dataset:
+                        batch_predictions = net(batch, training=False).numpy()
+                        predictions.extend(batch_predictions)
+
+                    preds[net.name] = {
+                        "predictions": np.array(predictions).reshape(X1.shape),
+                        "X1": X1,
+                        "X2": X2,
+                    }
                 else:
-                    if len(self.feature_nets[idx].input) == 2:
-                        min_feature0 = np.min(
-                            self.data[self.feature_nets[idx].input[0].name]
-                        )
-                        max_feature0 = np.max(
-                            self.data[self.feature_nets[idx].input[0].name]
-                        )
-                        min_feature1 = np.min(
-                            self.data[self.feature_nets[idx].input[1].name]
-                        )
-                        max_feature1 = np.max(
-                            self.data[self.feature_nets[idx].input[1].name]
-                        )
-                        x1_values = np.linspace(min_feature0, max_feature0, 100)
-                        x2_values = np.linspace(min_feature1, max_feature1, 100)
-                        X1, X2 = np.meshgrid(x1_values, x2_values)
-                        grid_dataset = tf.data.Dataset.from_tensor_slices((X1, X2))
+                    # Standard prediction logic
+                    predictions = []
+                    for inputs, _ in self.plotting_dataset:
+                        prediction = net(inputs, training=False).numpy()
+                        predictions.append(prediction)
 
-                        def add_feature_names_and_normalize(x1, x2):
-                            # Normalize Longitude and Latitude features
-                            feature0_normalized = (x1 - min_feature0) / (
-                                max_feature0 - min_feature0
-                            )
-                            feature1_normalized = (x2 - min_feature1) / (
-                                max_feature1 - min_feature1
-                            )
+                    preds[net.name] = np.concatenate(predictions, axis=0)
 
-                            return {
-                                self.feature_nets[idx]
-                                .input[0]
-                                .name: feature0_normalized,
-                                self.feature_nets[idx]
-                                .input[1]
-                                .name: feature1_normalized,
-                            }
+            return preds
 
-                        grid_dataset = grid_dataset.map(add_feature_names_and_normalize)
-                        predictions = self.feature_nets[idx].predict(grid_dataset)
+    def plot(self):
+        plot_additive_distributional_model(self)
 
-                        for j in range(self.family.dimension):
-                            cs = ax[idx, j].contourf(
-                                X1,
-                                X2,
-                                predictions[:, j].reshape(X1.shape),
-                                extend="both",
-                                levels=25,
-                            )
-                            ax[idx, j].scatter(
-                                self.data[self.feature_nets[idx].input[0].name],
-                                self.data[self.feature_nets[idx].input[1].name],
-                                c="black",
-                                label="Scatter Points",
-                                s=5,
-                            )
+    def plot_dist(self):
+        preds = self.predict(self.training_dataset)["summed_output"]
+        visualize_distribution(self.family, preds)
 
-                            plt.colorbar(cs, label="Predictions")
-                            ax[idx, j].set_xlabel(self.feature_nets[idx].input[0].name)
-                            ax[idx, j].set_ylabel(self.feature_nets[idx].input[1].name)
-                    else:
-                        continue
-
-            except TypeError:
-                ax[idx, 0].scatter(
-                    self.data[self.feature_nets[idx].name],
-                    self.data[self.y] - np.mean(self.data[self.y]),
-                    s=2,
-                    alpha=0.5,
-                    color="cornflowerblue",
-                )
-                for j in range(self.family.dimension):
-                    ax[idx, j].plot(
-                        self.plotting_data[self.feature_nets[idx].name],
-                        preds[idx][:, j],
-                        linewidth=2,
-                        color="crimson",
-                    )
-                    ax[idx, j].set_title(
-                        f"Effect of {self.feature_nets[idx].name} on theta_{[j+1]}"
-                    )
-                    ax[idx, j].set_ylabel(f"theta_{[j+1]}")
-                    ax[idx, j].grid(True)
-                    # Data density histogram
-        plt.tight_layout(pad=0.4, w_pad=0.3)
-        plt.show()
-
-    def plot_importances(self, title="Importances"):
-        """
-        Plot feature importances.
-
-        Args:
-            all (bool, optional): True to plot all importances (default is False).
-            title (str, optional): The title of the plot (default is "Importances").
-
-        Returns:
-            None
-        """
-        importances = self.predict(self.training_dataset, verbose=0)["importances"]
-
-        column_list = []
-        for i, feature in enumerate(self.TRANSFORMER_FEATURES):
-            column_list.extend([feature] * self.inputs[feature].shape[1])
-        importances = pd.DataFrame(importances[:, :-1], columns=column_list)
-        average_importances = []
-        for col_name in self.TRANSFORMER_FEATURES:
-            average_importances.append(importances.filter(like=col_name).sum(axis=1))
-        importances = pd.DataFrame(
-            {
-                column_name: column_data
-                for column_name, column_data in zip(
-                    self.TRANSFORMER_FEATURES, average_importances
-                )
-            }
-        )
-        imps_sorted = importances.mean().sort_values(ascending=False)
-        imps_sorted = imps_sorted / sum(imps_sorted)
-
-        plt.figure(figsize=(6, 4))
-        ax = imps_sorted.plot.bar()
-        for i, p in enumerate(ax.patches):
-            ax.annotate(
-                str(np.round(p.get_height(), 3)),
-                (p.get_x(), p.get_height() * 1.01),
-                rotation=90,
-                fontsize=12,
-            )
-            ax.annotate(
-                str(imps_sorted.index[i]),
-                (p.get_x() + 0.1, 0.01),
-                rotation=90,
-                fontsize=15,
-            )
-
-        ax.xaxis.set_tick_params(labelbottom=False)
-        plt.title(title)
-
-        plt.show()
+    def plot_importances(self, title="importances"):
+        visualize_importances(self, title)
 
     def plot_categorical_importances(self, title="Importances"):
-        """
-        Plot categorical feature importances.
+        visualize_categorical_importances(self, title)
 
-        Args:
-            title (str, optional): The title of the plot (default is "Importances").
-            n_top_categories (int, optional): The number of top categories to plot (default is 5).
-
-        Returns:
-            None
-        """
-        dataset = self._get_dataset(self.data, shuffle=False)
-        importances = self.predict(dataset, verbose=0)["importances"]
-
-        column_list = []
-        for i, feature in enumerate(self.TRANSFORMER_FEATURES):
-            column_list.extend([feature] * self.inputs[feature].shape[1])
-        importances = pd.DataFrame(importances[:, :-1], columns=column_list)
-        average_importances = []
-        for col_name in self.TRANSFORMER_FEATURES:
-            average_importances.append(importances.filter(like=col_name).sum(axis=1))
-        importances = pd.DataFrame(
-            {
-                column_name: column_data
-                for column_name, column_data in zip(
-                    self.TRANSFORMER_FEATURES, average_importances
-                )
-            }
-        )
-        result_dict = {}
-        imps_sorted = importances.mean().sort_values(ascending=False)
-
-        for category in self.TRANSFORMER_FEATURES:
-            unique_vals = self.data[category].unique()
-            for val in unique_vals:
-                bsc = self.data[self.data[category] == val].index
-                imps_value = importances.loc[bsc.values][category].mean()
-                result_dict[val] = imps_value
-        sort_dict = dict(sorted(result_dict.items(), key=lambda item: item[1]))
-        sorted_df = pd.DataFrame([sort_dict])
-        sorted_df = sorted_df / np.sum(sorted_df, axis=1)[0]
-        imps_sorted = sorted_df.iloc[:, -5:].transpose()
-        plt.figure(figsize=(12, 4))
-        ax = imps_sorted.plot.bar(legend=None)
-        for p in ax.patches:
-            ax.annotate(
-                str(np.round(p.get_height(), 4)), (p.get_x(), p.get_height() * 1.01)
-            )
-        plt.title(title)
-        plt.show()
-
-    def plot_heatmap_importances(self, cat1, cat2, title="Importances"):
-        """
-        Plot heatmap of feature importances.
-
-        Args:
-            cat1: The first categorical feature.
-            cat2: The second categorical feature.
-            title (str, optional): The title of the plot (default is "Importances").
-
-        Returns:
-            None
-        """
-        dataset = self._get_dataset(self.data, shuffle=False)
-        importances = self.predict(dataset, verbose=0)["importances"]
-
-        column_list = []
-        for i, feature in enumerate(self.TRANSFORMER_FEATURES):
-            column_list.extend([feature] * self.inputs[feature].shape[1])
-        importances = pd.DataFrame(importances[:, :-1], columns=column_list)
-        average_importances = []
-        for col_name in self.TRANSFORMER_FEATURES:
-            average_importances.append(importances.filter(like=col_name).sum(axis=1))
-        importances = pd.DataFrame(
-            {
-                column_name: column_data
-                for column_name, column_data in zip(
-                    self.TRANSFORMER_FEATURES, average_importances
-                )
-            }
-        )
-        result_dict = {}
-
-        unique_vals = self.data[cat1].unique()
-        for val1 in unique_vals:
-            temp_dict = {}
-            bsc1 = self.data[self.data[cat1] == val1].index
-            cat_df = self.data.loc[bsc1.values]
-
-            unique_vals2 = self.data[cat2].unique()
-            for val2 in unique_vals2:
-                bsc2 = cat_df[cat_df[cat2] == val2].index
-
-                cat_values = importances.loc[bsc1.values]
-                cat_values = importances.loc[bsc2.values]
-
-                temp_dict[val2] = cat_values[cat2].sum()
-
-            result_dict[val1] = temp_dict
-
-        plotting_importances = pd.DataFrame(result_dict) / np.sum(
-            pd.DataFrame(result_dict)
-        )
-        plotting_importances[plotting_importances == 0] = None
-        fig, axs = plt.subplots(
-            ncols=2, gridspec_kw=dict(width_ratios=[10, 0.5]), figsize=(4, 4)
-        )
-        sns.heatmap(plotting_importances, annot=True, fmt=".2%", cbar=False, ax=axs[0])
-        fig.colorbar(axs[0].collections[0], cax=axs[1])
-        plt.show()
+    def plot_heatmap_importances(self, cat1, cat2):
+        visualize_heatmap_importances(self, cat1, cat2)

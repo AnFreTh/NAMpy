@@ -1,20 +1,20 @@
-import matplotlib.pyplot as plt
 import tensorflow_probability as tfp
 import tensorflow as tf
 from keras.layers import Add
-from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
-import pandas as pd
+from xDL.shapefuncs.helper_nets.layers import InterceptLayer
 import warnings
-from scipy.stats import ttest_ind
 from xDL.shapefuncs.registry import ShapeFunctionRegistry
-
-tfd = tfp.distributions
 import numpy as np
-
-from xDL.backend.basemodel import AdditiveBaseModel
+from xDL.backend.interpretable_basemodel import AdditiveBaseModel
 from xDL.backend.families import *
-
-
+from xDL.visuals.plot_predictions import (
+    plot_additive_distributional_model,
+)
+from xDL.visuals.plot_distributional_interactive import (
+    visualize_distributional_regression_predictions,
+    visualize_distributional_additive_model,
+)
+from xDL.visuals.plot_distributions import visualize_distribution
 import warnings
 
 # Filter out the specific warning by category
@@ -32,6 +32,7 @@ class NAMLSS(AdditiveBaseModel):
         val_data=None,
         batch_size=1024,
         binning_task="regression",
+        loss="nll",
     ):
         """
         Initialize the NAMLSS model.
@@ -83,91 +84,135 @@ class NAMLSS(AdditiveBaseModel):
             binning_task=binning_task,
         )
 
-        if not isinstance(formula, str):
-            raise ValueError("The formula must be a string.")
+        self.model_built = False
+        self.family = family
+        self.loss_func = loss
 
-        if family not in [
+    def build(self, input_shape):
+        """
+        Build the model. This method should be called before training the model.
+        """
+        if self.model_built:
+            return
+
+        self._initialize_family()
+        self._initialize_shapefuncs()
+        self._initialize_feature_nets()
+        self._initialize_output_layer()
+
+        self.model_built = True
+
+        print("------------- Network architecture --------------")
+        for idx, net in enumerate(self.feature_nets):
+            print(
+                f"{net.name} -> {self.shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={self.shapefuncs[idx].output_dimension}"
+            )
+
+    def _initialize_family(self):
+        if self.family not in [
             "Normal",
             "Logistic",
             "InverseGamma",
             "Poisson",
             "JohnsonSU",
             "Gamma",
+            "Beta",
+            "Exponential",
+            "StudentT",
+            "Bernoulli",
+            "Chi2",
+            "Laplace",
+            "Cauchy",
+            "Binomial",
+            "NegativeBinomial",
+            "Uniform",
+            "Weibull",
         ]:
             raise ValueError(
-                "The family must be in ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', 'Gamma']. If you wish further distributions to be implemented please raise an Issue"
+                "The family must be in ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', "
+                "'Gamma', 'Beta', 'Exponential', 'StudentT', 'Bernoulli', 'Chi2', 'Laplace', 'Cauchy', "
+                "'Binomial', 'NegativeBinomial', 'Uniform', 'Weibull']. If you wish further distributions "
+                "to be implemented please raise an Issue"
             )
 
-        self.formula = formula
-
-        if family == "Normal":
+        if self.family == "Normal":
             self.family = Normal()
-        elif family == "Logistic":
+        elif self.family == "Logistic":
             self.family = Logistic()
-        elif family == "InverseGamma":
+        elif self.family == "InverseGamma":
             self.family = InverseGamma()
-        elif family == "Poisson":
+        elif self.family == "Poisson":
             self.family = Poisson()
-        elif family == "JohnsonSU":
+        elif self.family == "JohnsonSU":
             self.family = JohnsonSU()
-        elif family == "Gamma":
+        elif self.family == "Gamma":
             self.family = Gamma()
+        elif self.family == "Beta":
+            self.family = Beta()
+        elif self.family == "Exponential":
+            self.family = Exponential()
+        elif self.family == "StudentT":
+            self.family = StudentT()
+        elif self.family == "Bernoulli":
+            self.family = Bernoulli()
+        elif self.family == "Chi2":
+            self.family = Chi2()
+        elif self.family == "Laplace":
+            self.family = Laplace()
+        elif self.family == "cauchy":
+            self.family = Cauchy()
+        elif self.family == "Binomial":
+            self.family = Binomial()
+        elif self.family == "NegativeBinomial":
+            self.family = NegativeBinomial()
+        elif self.family == "Uniform":
+            self.family = Uniform()
+        elif self.family == "Weibull":
+            self.family = Weibull()
         else:
             raise ValueError(
-                "The family must be in ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', 'Gamma']. If you wish further distributions to be implemented please raise an Issue"
+                "Something went wrong with the specified Family. Please documentation or get in contact via an Issue"
             )
 
-        self.feature_dropout = feature_dropout
-
-        if self.fit_intercept:
-            self.intercept_layer = InterceptLayer()
-
-        shapefuncs = []
+    def _initialize_shapefuncs(self):
+        self.shapefuncs = []
         for _, key in enumerate(self.input_dict):
             class_reference = ShapeFunctionRegistry.get_class(
                 self.input_dict[key]["Network"]
             )
-            if class_reference:
-                shapefuncs.append(
-                    class_reference(
-                        inputs=self.input_dict[key]["Input"],
-                        param_dict=self.input_dict[key]["hyperparams"],
-                        name=key,
-                        identifier=key,
-                        output_dimension=self.family.dimension,
-                    )
-                )
-            else:
+            if not class_reference:
                 raise ValueError(
                     f"{self.input_dict[key]['Network']} not found in the registry"
                 )
 
+            self.shapefuncs.append(
+                class_reference(
+                    inputs=self.input_dict[key]["Input"],
+                    param_dict=self.input_dict[key]["hyperparams"],
+                    name=key,
+                    identifier=key,
+                    output_dimension=self.family.param_count,
+                )
+            )
+
+    def _initialize_feature_nets(self):
         self.feature_nets = []
         for idx, key in enumerate(self.input_dict.keys()):
             if "<>" in key:
-                keys = key.split("<>")
-                inputs = [self.inputs[k] for k in keys]
-                name = "_._".join(keys)
-                my_model = shapefuncs[idx].build(inputs, name=name)
+                inputs = [self.inputs[k] for k in key.split("<>")]
+                name = "_._".join(key.split("<>"))
+                my_model = self.shapefuncs[idx].build(inputs, name=name)
             else:
-                my_model = shapefuncs[idx].build(self.inputs[key], name=key)
-
+                my_model = self.shapefuncs[idx].build(self.inputs[key], name=key)
             self.feature_nets.append(my_model)
 
-        print("------------- Network architecture --------------")
-        print(
-            f"chosen distribution: {self.family._name}, distributional parameters: {self.family.param_names}"
-        )
-        for idx, net in enumerate(self.feature_nets):
-            print(
-                f"{net.name} -> {shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={self.family.dimension}"
-            )
-
-        self.output_layer = IdentityLayer(activation="linear")
+    def _initialize_output_layer(self):
         self.FeatureDropoutLayer = tf.keras.layers.Dropout(self.feature_dropout)
+        if self.fit_intercept:
+            self.intercept_layer = InterceptLayer()
 
-    def NegativeLogLikelihood(self, y_true, y_hat):
-        """Negative LogLIkelihood Loss function
+    def Loss(self, y_true, y_hat):
+        """Builds the Loss function for NAMLSS, one of NegativeLogLikelihood or KKL-Divergence
 
         Args:
             y_true (_type_): True Labels
@@ -176,7 +221,13 @@ class NAMLSS(AdditiveBaseModel):
         Returns:
             _type_: negative Log likelihood of respective input distribution
         """
-        return -y_hat.log_prob(tf.cast(y_true, dtype=tf.float32))
+        # return self.family.negative_log_likelihood(y_true, y_hat)
+        if self.loss_func:
+            return -y_hat.log_prob(tf.cast(y_true, dtype=tf.float32))
+        elif self.loss_func == "kld":
+            return self.family.KL_divergence(y_true, y_hat)
+        else:
+            raise ValueError
 
     def call(self, inputs, training=False):
         """
@@ -188,156 +239,90 @@ class NAMLSS(AdditiveBaseModel):
         Returns:
             Output tensor.
         """
-        outputs = [network(inputs) for network in self.feature_nets]
+        feature_preds = [network(inputs) for network in self.feature_nets]
         if training:
-            outputs = [self.FeatureDropoutLayer(output) for output in outputs]
-        summed_outputs = Add()(outputs)
+            feature_preds_dropout = [
+                self.FeatureDropoutLayer(output) for output in feature_preds
+            ]
+            summed_outputs = Add()(feature_preds_dropout)
+        else:
+            summed_outputs = Add()(feature_preds)
 
         # Manage the intercept:
         if self.fit_intercept:
             summed_outputs = self.intercept_layer(summed_outputs)
-        output = self.output_layer(summed_outputs)
 
-        # Add probability Layer
-        p_y = tfp.layers.DistributionLambda(lambda x: self.family.forward(x))(output)
-        return p_y
+            # Add probability Layer
+        p_y = tfp.layers.DistributionLambda(lambda x: self.family(x))(summed_outputs)
+        feature_preds_dict = {
+            f"{self.feature_nets[i].name}": pred for i, pred in enumerate(feature_preds)
+        }
 
-    def _get_training_preds(self, mean=False):
-        preds = [
-            net.predict(self.training_dataset, verbose=0) for net in self.feature_nets
-        ]
-        preds = np.sum(preds, axis=0)
-        preds = self.family.transform(preds)
+        return {"output": p_y, "summed_output": summed_outputs, **feature_preds_dict}
 
-        if mean:
-            preds = preds[:, 0]
-
-        return preds
-
-    def _get_validation_preds(self):
-        preds = [
-            net.predict(self.validation_dataset, verbose=0) for net in self.feature_nets
-        ]
-        preds = np.sum(preds, axis=0)
-        preds = self.family.transform(preds)
-
-        return preds
-
-    def _get_plotting_preds(self, training_data=False, mean=False):
+    def _get_plotting_preds(self, training_data=False):
         if training_data:
-            preds = [
-                net.predict(self.training_dataset, verbose=0)
-                for net in self.feature_nets
-            ]
+            return self.predict(self.training_dataset)["output"]
         else:
-            preds = [
-                net.predict(self.plotting_dataset, verbose=0)
-                for net in self.feature_nets
-            ]
+            preds = {}
 
-        return preds
+            for net in self.feature_nets:
+                if net.name.count("_._") == 1:
+                    # Logic for nets with '_._' in their name
+                    min_feature0 = np.min(self.data[net.input[0].name])
+                    max_feature0 = np.max(self.data[net.input[0].name])
+                    min_feature1 = np.min(self.data[net.input[1].name])
+                    max_feature1 = np.max(self.data[net.input[1].name])
+
+                    x1_values = np.linspace(min_feature0, max_feature0, 100)
+                    x2_values = np.linspace(min_feature1, max_feature1, 100)
+                    X1, X2 = np.meshgrid(x1_values, x2_values)
+
+                    # Normalize features
+                    X1_normalized = (X1 - min_feature0) / (max_feature0 - min_feature0)
+                    X2_normalized = (X2 - min_feature1) / (max_feature1 - min_feature1)
+
+                    # Create tf.data.Dataset from normalized inputs
+                    grid_dataset = tf.data.Dataset.from_tensor_slices(
+                        {
+                            net.input[0].name: X1_normalized.flatten(),
+                            net.input[1].name: X2_normalized.flatten(),
+                        }
+                    ).batch(
+                        128
+                    )  # Batch size can be adjusted
+
+                    # Generate predictions
+                    predictions = []
+                    for batch in grid_dataset:
+                        batch_predictions = net(batch, training=False).numpy()
+                        predictions.extend(batch_predictions)
+
+                    preds[net.name] = {
+                        "predictions": np.array(predictions).reshape(100, 100, 2),
+                        "X1": X1,
+                        "X2": X2,
+                    }
+                else:
+                    # Standard prediction logic
+                    predictions = []
+                    for inputs, _ in self.plotting_dataset:
+                        prediction = net(inputs, training=False).numpy()
+                        predictions.append(prediction)
+
+                    preds[net.name] = np.concatenate(predictions, axis=0)
+
+            return preds
 
     def plot_dist(self):
-        preds = self._get_training_preds()
-        self.family._plot_dist(preds)
+        preds = self.predict(self.training_dataset)["summed_output"]
+        visualize_distribution(self.family, preds)
 
-    def plot(self, levels=50):
-        fig, ax = plt.subplots(
-            len(self.input_dict), self.family.dimension, figsize=(10, 12)
-        )
+    def plot(self):
+        plot_additive_distributional_model(self)
 
-        preds = self._get_plotting_preds()
+    def plot_additive_interactive(self, port=8505):
+        visualize_distributional_regression_predictions(self)
 
-        for idx in range(len(self.input_dict)):
-            try:
-                len(self.feature_nets[idx].input)
-                if (
-                    self.feature_nets[idx].input[0].dtype != float
-                    or self.feature_nets[idx].input[1].dtype != float
-                ):
-                    continue
-                else:
-                    if len(self.feature_nets[idx].input) == 2:
-                        min_feature0 = np.min(
-                            self.data[self.feature_nets[idx].input[0].name]
-                        )
-                        max_feature0 = np.max(
-                            self.data[self.feature_nets[idx].input[0].name]
-                        )
-                        min_feature1 = np.min(
-                            self.data[self.feature_nets[idx].input[1].name]
-                        )
-                        max_feature1 = np.max(
-                            self.data[self.feature_nets[idx].input[1].name]
-                        )
-                        x1_values = np.linspace(min_feature0, max_feature0, 100)
-                        x2_values = np.linspace(min_feature1, max_feature1, 100)
-                        X1, X2 = np.meshgrid(x1_values, x2_values)
-                        grid_dataset = tf.data.Dataset.from_tensor_slices((X1, X2))
-
-                        def add_feature_names_and_normalize(x1, x2):
-                            # Normalize Longitude and Latitude features
-                            feature0_normalized = (x1 - min_feature0) / (
-                                max_feature0 - min_feature0
-                            )
-                            feature1_normalized = (x2 - min_feature1) / (
-                                max_feature1 - min_feature1
-                            )
-
-                            return {
-                                self.feature_nets[idx]
-                                .input[0]
-                                .name: feature0_normalized,
-                                self.feature_nets[idx]
-                                .input[1]
-                                .name: feature1_normalized,
-                            }
-
-                        grid_dataset = grid_dataset.map(add_feature_names_and_normalize)
-                        predictions = self.feature_nets[idx].predict(grid_dataset)
-
-                        for j in range(self.family.dimension):
-                            cs = ax[idx, j].contourf(
-                                X1,
-                                X2,
-                                predictions[:, j].reshape(X1.shape),
-                                extend="both",
-                                levels=levels,
-                            )
-                            ax[idx, j].scatter(
-                                self.data[self.feature_nets[idx].input[0].name],
-                                self.data[self.feature_nets[idx].input[1].name],
-                                c="black",
-                                label="Scatter Points",
-                                s=5,
-                            )
-
-                            plt.colorbar(cs, label="Predictions")
-                            ax[idx, j].set_xlabel(self.feature_nets[idx].input[0].name)
-                            ax[idx, j].set_ylabel(self.feature_nets[idx].input[1].name)
-                    else:
-                        continue
-
-            except TypeError:
-                ax[idx, 0].scatter(
-                    self.data[self.feature_nets[idx].name],
-                    self.data[self.y],  # - np.mean(self.data[self.y]),
-                    s=2,
-                    alpha=0.5,
-                    color="cornflowerblue",
-                )
-                for j in range(self.family.dimension):
-                    ax[idx, j].plot(
-                        self.plotting_data[self.feature_nets[idx].name],
-                        preds[idx][:, j],
-                        linewidth=2,
-                        color="crimson",
-                    )
-                    ax[idx, j].set_title(
-                        f"Effect of {self.feature_nets[idx].name} on theta_{[j+1]}"
-                    )
-                    ax[idx, j].set_ylabel(f"theta_{[j+1]}")
-                    ax[idx, j].grid(True)
-                    # Data density histogram
-        plt.tight_layout(pad=0.4, w_pad=0.3)
-        plt.show()
+    def plot_all_interactive(self, port=8505):
+        visualize_distributional_additive_model(self)
