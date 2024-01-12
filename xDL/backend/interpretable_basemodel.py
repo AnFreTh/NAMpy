@@ -97,23 +97,32 @@ class AdditiveBaseModel(tf.keras.Model):
             self.feature_information,
         ) = FH._extract_formula_data(self.formula, self.data)
 
-        helper_idx = self.feature_names + [self.target_name]
-        self.data = self.data[helper_idx]
-
         self.input_dict = {}
+        column_names = []
         for idx, name in enumerate(self.terms):
             if ":" in name:
                 input_names = name.split(":")
                 self.input_dict["<>".join(input_names)] = {
-                    "Network": self.feature_information[input_names[0]]["Network"],
-                    "hyperparams": self.feature_information[input_names[0]],
+                    "Network": self.feature_information[input_names[0] + "_."][
+                        "Network"
+                    ],
+                    "hyperparams": self.feature_information[input_names[0] + "_."],
                 }
+
+                column_names.extend([part + "_." for part in input_names])
 
             else:
                 self.input_dict[name] = {
                     "Network": self.feature_information[name]["Network"],
                     "hyperparams": self.feature_information[name],
                 }
+
+                column_names.append(name)
+
+        column_names.append(self.target_name)
+        helper_idx = self.feature_names + [self.target_name]
+        self.data = self.data[helper_idx]
+        self.data.columns = column_names
 
     def _extract_data_types(self):
         self.NUM_FEATURES = []
@@ -196,7 +205,7 @@ class AdditiveBaseModel(tf.keras.Model):
             if ":" in name:
                 input_names = name.split(":")
                 self.input_dict["<>".join(input_names)]["Input"] = [
-                    self.inputs[inp_name] for inp_name in input_names
+                    self.inputs[inp_name + "_."] for inp_name in input_names
                 ]
             else:
                 self.input_dict[name]["Input"] = [self.inputs[name]]

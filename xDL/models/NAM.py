@@ -105,7 +105,7 @@ class NAM(AdditiveBaseModel):
         self.feature_nets = []
         for idx, key in enumerate(self.input_dict.keys()):
             if "<>" in key:
-                inputs = [self.inputs[k] for k in key.split("<>")]
+                inputs = [self.inputs[k + "_."] for k in key.split("<>")]
                 name = "_._".join(key.split("<>"))
                 my_model = self.shapefuncs[idx].build(inputs, name=name)
             else:

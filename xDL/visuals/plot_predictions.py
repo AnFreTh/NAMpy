@@ -33,7 +33,13 @@ def plot_interaction(ax, preds, key, data):
     )
 
     # Add a scatter plot of the actual data points
-    ax.scatter(data[feature1], data[feature2], c="black", label="Scatter Points", s=5)
+    ax.scatter(
+        data[feature1 + "_."],
+        data[feature2 + "_."],
+        c="black",
+        label="Scatter Points",
+        s=5,
+    )
 
     # Add a color bar to indicate prediction values
     plt.colorbar(cs, ax=ax, label="Predictions")
@@ -73,7 +79,13 @@ def plot_interaction_lss(ax, preds, key, data, param_idx):
     )
 
     # Add a scatter plot of the actual data points
-    ax.scatter(data[feature1], data[feature2], c="black", label="Scatter Points", s=5)
+    ax.scatter(
+        data[feature1 + "_."],
+        data[feature2 + "_."],
+        c="black",
+        label="Scatter Points",
+        s=5,
+    )
 
     # Add a color bar to indicate prediction values
     plt.colorbar(cs, ax=ax, label="Predictions")
@@ -206,6 +218,7 @@ def plot_additive_model(
     axs = axs.flatten()  # Flatten in case of a grid
 
     for idx, (key, value) in enumerate(preds.items()):
+        print(key)
         ax = axs[idx]  # Get the current Axes instance on the grid
 
         if "_._" in key:

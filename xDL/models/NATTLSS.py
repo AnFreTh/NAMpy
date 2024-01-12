@@ -284,7 +284,7 @@ class NATTLSS(AdditiveBaseModel):
                 idx = idx - offset
                 if "<>" in key:
                     keys = key.split("<>")
-                    inputs = [self.inputs[k] for k in keys]
+                    inputs = [self.inputs[k + "_."] for k in key.split("<>")]
                     name = "_._".join(keys)
                     my_model = self.shapefuncs[idx].build(inputs, name=name)
                 else:
