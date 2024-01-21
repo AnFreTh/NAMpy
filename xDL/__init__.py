@@ -1,5 +1,5 @@
 """Top-level package for xDL."""
-from xDL.models import *
+# from xDL.models import *
 from xDL.shapefuncs.helper_nets.featurenets import (
     MLP,
     CubicSplineNet,
