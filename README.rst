@@ -37,44 +37,38 @@ Available Models
 ***************
 The following models are natively available in `xDL`
 
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| Name                                                                            | Details                                                                                         |
-+=================================================================================+=================================================================================================+
-| NAM `(Agarwal et al. 2021)`_                                                    | Generalized Additive Model with MLPs as feature networks                                        |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| NAMLSS `(Thielmann et al. 2023 (a))`_                                           | Distributional Neural Additive model                                                            |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| NATT `(Thielmann et al. 2023 (b))`_                                             | Neural Additive Model with transformer representations for categorical features                 |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| NATTLSS `(Thielmann et al. 2023 (a))`_ `(Thielmann et al. 2023 (b))`_           | Distributional Neural Additive Model with transformer representations for categorical features  |
-+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| SNAM `(Luber et al. 2023)`_                                                     | Structural Neural Additive Model with Splines as feature nets                                   |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| SNAMLSS `(Luber et al. 2023)`_ `(Thielmann et al. 2023 (a))`_                   | Distributional Structural Neural Additive Model with Splines as feature nets                    |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| TBD: BNAM `(Kruse et al. 2024)`_                                                | Bayesian Neural Additive Model                                                                  |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| TDB: QNAM `(Seifert et al. 2024)`_                                              | Quantile Additive Model                                                                         |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| TabTransformer `(Huang et al. 2021)`_                                           | Tabular Transformer Networks with attention layers for categorical features                     |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| TabTransformerLSS `(Huang et al. 2021)`_ `(Thielmann et al. 2023 (a))`_         | Distributional Tabular Transformer Networks with attention layers for categorical features      |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| FT-Transformer `(Gorishniy et al. 2021)`_                                       | Neural Additive Model with transformer representations for categorical features                 |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
-| FT-TransformerLSS `(Gorishniy et al. 2021)`_ `(Thielmann et al. 2023 (b))`_     | Distributional Neural Additive Model with transformer representations for categorical features  |
-+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
++-------------------------------------+-------------------------------------------------------------------------------------------------+
+| Name                                | Details                                                                                         |
++=====================================+=================================================================================================+
+| NAM [`1`_]                          | Generalized Additive Model with MLPs as feature networks                                        |
++-------------------------------------+-------------------------------------------------------------------------------------------------+
+| NAMLSS [`2`_]                       | Distributional Neural Additive model                                                            |
++-------------------------------------+-------------------------------------------------------------------------------------------------+
+| NATT [`3`_]                         | Neural Additive Model with transformer representations for categorical features                 |
++-------------------------------------+-------------------------------------------------------------------------------------------------+
+| NATTLSS [`2`_ , `3`_]               | Distributional Neural Additive Model with transformer representations for categorical features  |
++-------------------------------------+-------------------------------------------------------------------------------------------------+
+| SNAM [`4`_]                         | Structural Neural Additive Model with Splines as feature nets                                   |
++-------------------------------------+-------------------------------------------------------------------------------------------------+
+| SNAMLSS [`2`_ , `4`_]               | Distributional Structural Neural Additive Model with Splines as feature nets                    |
++-------------------------------------+-------------------------------------------------------------------------------------------------+
+| TabTransformer [`5`_]               | Tabular Transformer Networks with attention layers for categorical features                     |
++-------------------------------------+-------------------------------------------------------------------------------------------------+
+| TabTransformerLSS [`2`_ , `5`_]     | Distributional Tabular Transformer Networks with attention layers for categorical features      |
++-------------------------------------+-------------------------------------------------------------------------------------------------+
+| FT-Transformer [`6`_]               | Feature transformer- tabular transformer network                                                |
++-------------------------------------+-------------------------------------------------------------------------------------------------+
+| FT-TransformerLSS [`2`_ , `6`_]     | Distributional Feature transformer- tabular transformer network                                 |
++-------------------------------------+-------------------------------------------------------------------------------------------------+
 
 
-.. _(Agarwal et al. 2021): https://proceedings.neurips.cc/paper_files/paper/2021/file/251bd0442dfcc53b5a761e050f8022b8-Paper.pdf
-.. _(Thielmann et al. 2023 (a)): https://arxiv.org/pdf/2301.11862.pdf 
-.. _(Luber et al. 2023): https://arxiv.org/pdf/2302.09275.pdf
-.. _(Thielmann et al. 2023 (b)): tbd
-.. _(Kruse et al. 2024): tbd
-.. _(Seifert et al. 2024): tbd
-.. _(Huang et al. 2020): https://arxiv.org/abs/2012.06678
-.. _(Gorishniy et al. 2021): https://proceedings.neurips.cc/paper_files/paper/2021/file/9d86d83f925f2149e9edb0ac3b49229c-Paper.pdf
-.. _(Gorishniy et al. 2022): https://proceedings.neurips.cc/paper_files/paper/2022/file/9e9f0ffc3d836836ca96cbf8fe14b105-Paper-Conference.pdf
+.. _1: https://proceedings.neurips.cc/paper_files/paper/2021/file/251bd0442dfcc53b5a761e050f8022b8-Paper.pdf
+.. _2: https://arxiv.org/pdf/2301.11862.pdf 
+.. _4: https://arxiv.org/pdf/2302.09275.pdf
+.. _3: tbd
+.. _5: https://arxiv.org/abs/2012.06678
+.. _6: https://proceedings.neurips.cc/paper_files/paper/2021/file/9d86d83f925f2149e9edb0ac3b49229c-Paper.pdf
+.. _7: https://proceedings.neurips.cc/paper_files/paper/2022/file/9e9f0ffc3d836836ca96cbf8fe14b105-Paper-Conference.pdf
 
 
 If you use one of these implementations, make sure to cite the right paper.
@@ -82,9 +76,9 @@ If you use one of these implementations, make sure to cite the right paper.
 If you implemented a model and wish to update any part of it, or do not want your model to be included in this library, please get in touch through a GitHub issue.
 
 
-Note that for ``FT-Transformer`` `(Gorishniy et al. 2021)`_ we directly use periodic linear encodings followed by a fully connected dense layer for the numerical features `(Gorishniy et al. 2022)`_.
-For ``SNAMs`` `(Luber et al. 2023)`_ , we slightly adapt the architecture and include an additional fully connected hidden layer after each Spline Layer.
-For ``NAMs`` `(Agarwal et al. 2021)`_  we set the default activation function to be a ReLU function instead of the proposed ExU activation function due to smoother and better interpretable shape functions.
+Note that for ``FT-Transformer`` [`6`_] we directly use periodic linear encodings followed by a fully connected dense layer for the numerical features [`7`_]  .
+For ``SNAMs`` [`4`_] , we slightly adapt the architecture and include an additional fully connected hidden layer after each Spline Layer.
+For ``NAMs`` [`1`_]   we set the default activation function to be a ReLU function instead of the proposed ExU activation function due to smoother and better interpretable shape functions.
 
 ***************
 Usage
@@ -184,11 +178,19 @@ To build and train a model in xDL, follow these steps:
 
    .. code-block:: python
 
-      model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss={"output":"mse"}, metrics={"output":"mae"})
+      model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), 
+        loss={"output":"mse"}, 
+        metrics={"output":"mae"}
+        )
 
-      model.fit(nam.training_dataset, epochs=100, validation_data=nam.validation_dataset)
+      model.fit(
+        nam.training_dataset, 
+        epochs=100, 
+        validation_data=nam.validation_dataset
+        )
 
-1. **Evaluate the Model:**
+4. **Evaluate the Model:**
 
    Evaluating the model is a crucial step to assess its performance. You can use the Keras API to calculate various metrics, including the test loss. This information is essential for understanding how well the model generalizes to unseen data.
 
