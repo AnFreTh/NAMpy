@@ -3,9 +3,9 @@
   :alt: Logo
 
 
-***************************************
+*******************************************
 xDL - Explainable Deep Learning in Python
-***************************************
+*******************************************
 
 ``xDL`` (Explainable Deep Learning) is a Python package that focuses on training, analyzing, and comparing inherently interpretable Deep Learning Models. Our primary emphasis is on additive models and distributional regression models that are known for their transparency and interpretability.
 
@@ -15,12 +15,12 @@ What is a Neural Additive Model?
 A **neural additive model** is a type of interpretable deep learning model that combines the power of neural networks with the interpretability of additive models. In essence, it is a model architecture that allows us to understand how individual features contribute to the model's predictions. Instead of relying on complex, black-box models, neural additive models provide clear insights into the relationships between input features and the model's output.
 
 Why Choose ``xDL`` for Interpretable Deep Learning?
-------------------------------------------------
+----------------------------------------------------
 
 **xDL** offers a wide range of implementations for interpretable deep neural networks, with a strong emphasis on additive models. It also includes the tools and visualizations necessary for analyzing and understanding the behavior of these models. One of the key features of xDL is its user-friendly, formula-like interface, making it easy to create and analyze interpretable deep learning models.
 
 Key Features
-------------
+--------------
 
 - **Flexibility:** ``xDL`` is built on the TensorFlow Keras framework, offering complete flexibility for creating and customizing interpretable deep learning models. You can leverage the power of Keras to tailor models to your specific needs.
 
@@ -32,9 +32,18 @@ Key Features
    :depth: 2
 
 
-***************
+*****************
+Installation
+*****************
+Simple installation via Github. Best to use Python 3.9.
+
+.. code-block:: sh
+
+    pip install git+https://github.com/AnFreTh/xDL.git
+
+*****************
 Available Models
-***************
+*****************
 The following models are natively available in `xDL`
 
 +-------------------------------------+-------------------------------------------------------------------------------------------------+
