@@ -124,9 +124,7 @@ def visualize_distributional_additive_model(
     port=8050,
 ):
     # Assert that the model has the 'encoder' attribute
-    assert isinstance(
-        model, AdditiveBaseModel
-    ), "Model does not have an 'encoder' attribute"
+    assert isinstance(model, AdditiveBaseModel), "Model must be an additive model"
 
     # Assert that the model has the '_get_training_preds' method implemented
     assert callable(
