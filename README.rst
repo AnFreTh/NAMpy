@@ -1,4 +1,4 @@
-.. image:: https://github.com/AFThielmann/nampy/blob/dev/namlss_structure.png
+.. image:: https://github.com/AFThielmann/NAMpy/blob/dev/namlss_structure.png
   :width: 1000
   :alt: Logo
 
@@ -39,7 +39,7 @@ Simple installation via Github. Best to use Python 3.9.
 
 .. code-block:: sh
 
-    pip install git+https://github.com/AnFreTh/nampy.git
+    pip install git+https://github.com/AnFreTh/NAMpy.git
 
 *****************
 Available Models
@@ -282,7 +282,7 @@ with the predictive distribution when omitting each feature on a permutation tes
 
 
 
-.. image:: https://github.com/AFThielmann/nampy/blob/dev/significance.png
+.. image:: https://github.com/AFThielmann/NAMpy/blob/dev/significance.png
   :width: 300
   :alt: significance
 
