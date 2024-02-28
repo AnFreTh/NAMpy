@@ -11,7 +11,7 @@ with open("README.rst", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="xDL",  # Replace with your package's name
+    name="nampy",  # Replace with your package's name
     version="0.1.0",  # The current version of your package
     author="Anton Thielmann",  # Replace with your name
     author_email="anton.thielmann@tu-clausthal.de",  # Replace with your email

@@ -1,30 +1,30 @@
-.. image:: https://github.com/AFThielmann/xDL/blob/dev/namlss_structure.png
+.. image:: https://github.com/AFThielmann/nampy/blob/dev/namlss_structure.png
   :width: 1000
   :alt: Logo
 
 
 *******************************************
-xDL - Explainable Deep Learning in Python
+NAMpy - Explainable Deep Learning in Python
 *******************************************
 
-``xDL`` (Explainable Deep Learning) is a Python package that focuses on training, analyzing, and comparing inherently interpretable Deep Learning Models. Our primary emphasis is on additive models and distributional regression models that are known for their transparency and interpretability.
+``nampy`` is a Python package that focuses on training, analyzing, and comparing inherently interpretable Deep Learning Models. Our primary emphasis is on additive models and distributional regression models that are known for their transparency and interpretability.
 
 What is a Neural Additive Model?
 ----------------------------------
 
 A **neural additive model** is a type of interpretable deep learning model that combines the power of neural networks with the interpretability of additive models. In essence, it is a model architecture that allows us to understand how individual features contribute to the model's predictions. Instead of relying on complex, black-box models, neural additive models provide clear insights into the relationships between input features and the model's output.
 
-Why Choose ``xDL`` for Interpretable Deep Learning?
+Why Choose ``nampy`` for Interpretable Deep Learning?
 ----------------------------------------------------
 
-**xDL** offers a wide range of implementations for interpretable deep neural networks, with a strong emphasis on additive models. It also includes the tools and visualizations necessary for analyzing and understanding the behavior of these models. One of the key features of xDL is its user-friendly, formula-like interface, making it easy to create and analyze interpretable deep learning models.
+**nampy** offers a wide range of implementations for interpretable deep neural networks, with a strong emphasis on additive models. It also includes the tools and visualizations necessary for analyzing and understanding the behavior of these models. One of the key features of nampy is its user-friendly, formula-like interface, making it easy to create and analyze interpretable deep learning models.
 
 Key Features
 --------------
 
-- **Flexibility:** ``xDL`` is built on the TensorFlow Keras framework, offering complete flexibility for creating and customizing interpretable deep learning models. You can leverage the power of Keras to tailor models to your specific needs.
+- **Flexibility:** ``nampy`` is built on the TensorFlow Keras framework, offering complete flexibility for creating and customizing interpretable deep learning models. You can leverage the power of Keras to tailor models to your specific needs.
 
-- **Adjustable Shape Functions:** ``xDL`` allows users to write their own shape functions or feature networks easily. This means you can adapt the model to work with various types of data and problems.
+- **Adjustable Shape Functions:** ``nampy`` allows users to write their own shape functions or feature networks easily. This means you can adapt the model to work with various types of data and problems.
 
 
 
@@ -39,12 +39,12 @@ Simple installation via Github. Best to use Python 3.9.
 
 .. code-block:: sh
 
-    pip install git+https://github.com/AnFreTh/xDL.git
+    pip install git+https://github.com/AnFreTh/nampy.git
 
 *****************
 Available Models
 *****************
-The following models are natively available in `xDL`
+The following models are natively available in `nampy`
 
 +-------------------------------------+-------------------------------------------------------------------------------------------------+
 | Name                                | Details                                                                                         |
@@ -92,7 +92,7 @@ For ``NAMs`` [`1`_]   we set the default activation function to be a ReLU functi
 ***************
 Usage
 ***************
-All models are demonstrated in the examples folder. Generally xDL follows the Keras functional API such that you can use anything available for the Keras models.
+All models are demonstrated in the examples folder. Generally nampy follows the Keras functional API such that you can use anything available for the Keras models.
 
 
 
@@ -103,7 +103,7 @@ From Strings to Formulas
 Introduction
 ------------
 
-In **xDL**, we offer multiple Additive Models. We closely follow the principles of the R-package mgcv by Simon Wood when initializing models. The general formula for an additive model follows a simple and intuitive notion:
+In **nampy**, we offer multiple Additive Models. We closely follow the principles of the R-package mgcv by Simon Wood when initializing models. The general formula for an additive model follows a simple and intuitive notion:
 
 - The ``"y ~ -1 feature1 + feature2 + feature1:feature2"`` formula, where:
   - ``~`` represents the dependent variable and predictor variables.
@@ -132,7 +132,7 @@ Hyperparameters for the available shape functions can be easily adapted using a 
 Versatile Features and Preprocessing
 -------------------------------------
 
-All additive models in **xDL** can be constructed over flexible features, with adaptable shape functions and dynamic feature interactions. The data is automatically preprocessed according to the chosen shape function and data type.
+All additive models in **nampy** can be constructed over flexible features, with adaptable shape functions and dynamic feature interactions. The data is automatically preprocessed according to the chosen shape function and data type.
 
 - The individual preprocessing can either be chosen flexibly (e.g., periodic linear encoding, one-hot encoding, etc.) or performed individually before initializing the model.
 - Make sure not to apply multiple preprocessing steps when using already preprocessed input features.
@@ -140,7 +140,7 @@ All additive models in **xDL** can be constructed over flexible features, with a
 User-Defined Shape Functions
 --------------------------
 
-**xDL** empowers users to define their own custom shape functions and seamlessly integrate them into the model. This ensures that users can call custom shape functions with flexible arguments, just like the default ones.
+**nampy** empowers users to define their own custom shape functions and seamlessly integrate them into the model. This ensures that users can call custom shape functions with flexible arguments, just like the default ones.
 
 For detailed instructions on defining custom shape functions and adding them to the model, please refer to the documentation.
 
@@ -148,7 +148,7 @@ For detailed instructions on defining custom shape functions and adding them to 
 Fit a Model
 ******************************
 
-To build and train a model in xDL, follow these steps:
+To build and train a model in nampy, follow these steps:
 
 1. **Load the Data:**
 
@@ -156,7 +156,7 @@ To build and train a model in xDL, follow these steps:
 
    .. code-block:: python
 
-      from xDL.models.NAM import NAM
+      from nampy.models.NAM import NAM
 
       # Load a dataset (e.g., California Housing dataset)
       housing = fetch_california_housing(as_frame=True)
@@ -182,7 +182,7 @@ To build and train a model in xDL, follow these steps:
 3. **Train the Model:**
 
    After initializing the model, you can train it using the Keras API. This step involves specifying an optimizer, loss function, and training settings. The training dataset is used for fitting the model, and the validation dataset helps monitor its performance during training.
-   Note, that xDL Models have dictionaries as outputs including not only the models overall predictions but often either the individual feature network predictions or attention weights/distributional parameter predictions. Thus the loss argument should be adapted.
+   Note, that nampy Models have dictionaries as outputs including not only the models overall predictions but often either the individual feature network predictions or attention weights/distributional parameter predictions. Thus the loss argument should be adapted.
    For all models, except the disrtibutional models, a simple loss={"output": your_loss_metric} already suffices.
 
    .. code-block:: python
@@ -229,7 +229,7 @@ To build and train a model in xDL, follow these steps:
 Visualization and Interpretability
 ******************************
 
-xDL offers multiple methods for visualization and interpretability, allowing you to gain insights into your model's behavior and feature importance.
+nampy offers multiple methods for visualization and interpretability, allowing you to gain insights into your model's behavior and feature importance.
 
 1. **Analyze the Model:**
 
@@ -247,7 +247,7 @@ xDL offers multiple methods for visualization and interpretability, allowing you
 
       model.plot()
 
-   Further, xDL offers plotly plots with increased usability.
+   Further, nampy offers plotly plots with increased usability.
 
    .. code-block:: python
 
@@ -272,7 +272,7 @@ xDL offers multiple methods for visualization and interpretability, allowing you
 **************************
 Pseudo Significance
 **************************
-For the additive models, xDL computes a pseudo-feature significance where possible, by simply comparing the predictive distribution
+For the additive models, nampy computes a pseudo-feature significance where possible, by simply comparing the predictive distribution
 with the predictive distribution when omitting each feature on a permutation test basis.
 
 .. code-block:: python
@@ -282,7 +282,7 @@ with the predictive distribution when omitting each feature on a permutation tes
 
 
 
-.. image:: https://github.com/AFThielmann/xDL/blob/dev/significance.png
+.. image:: https://github.com/AFThielmann/nampy/blob/dev/significance.png
   :width: 300
   :alt: significance
 
@@ -290,7 +290,7 @@ with the predictive distribution when omitting each feature on a permutation tes
 Available Shape Functions and Encodings
 ******************************
 
-In xDL, we provide a wide range of shape functions and encodings to cater to various data types and modeling requirements. These shape functions are designed to make your deep learning models more interpretable and flexible.
+In nampy, we provide a wide range of shape functions and encodings to cater to various data types and modeling requirements. These shape functions are designed to make your deep learning models more interpretable and flexible.
 
 **Available Shape Functions**
 
@@ -320,11 +320,11 @@ In xDL, we provide a wide range of shape functions and encodings to cater to var
     - Incorporates a standard Attention Transformer block.
     - Can (and should) be used for (higher-order) feature interactions by adding a ":" in between, like `Transfer(feature1):Transfer(feature2):...`.
 
-Please note that you can also implement your custom shape functions by following the provided guide in the example section. Ensure that you name your shape functions and the respective Python functions accordingly for seamless integration with xDL.
+Please note that you can also implement your custom shape functions by following the provided guide in the example section. Ensure that you name your shape functions and the respective Python functions accordingly for seamless integration with nampy.
 
 **Available Encodings**
 
-For data preprocessing, xDL offers a variety of encodings, many of which can be applied to different shape functions. These encodings are designed to handle various data types and make it easier to process your data effectively.
+For data preprocessing, nampy offers a variety of encodings, many of which can be applied to different shape functions. These encodings are designed to handle various data types and make it easier to process your data effectively.
 
 1. **Normalized:**
     - Performs simple standard normalization of a continuous input feature.
@@ -365,15 +365,15 @@ These shape functions and encodings offer the flexibility and versatility needed
 Individual Shape Functions
 ****************************
 
-One of the powerful features of xDL is its flexibility, allowing you to create your own custom shape functions and feature networks. This customization enables you to address specific modeling needs and incorporate your domain expertise seamlessly.
+One of the powerful features of nampy is its flexibility, allowing you to create your own custom shape functions and feature networks. This customization enables you to address specific modeling needs and incorporate your domain expertise seamlessly.
 
 **Creating Custom Shape Functions**
 
-Creating custom shape functions or feature networks in xDL is a straightforward process. To do so, follow these steps:
+Creating custom shape functions or feature networks in nampy is a straightforward process. To do so, follow these steps:
 
 1. **Inherit from the ShapeFunction Parentclass:**
 
-   When creating your custom shape function, ensure that your class inherits from the `ShapeFunction` parent class. This parent class provides essential functionalities for integrating your custom network into the xDL framework.
+   When creating your custom shape function, ensure that your class inherits from the `ShapeFunction` parent class. This parent class provides essential functionalities for integrating your custom network into the nampy framework.
 
 2. **Define the Network in a `forward(self, inputs)` Function:**
 
@@ -396,8 +396,8 @@ Creating custom shape functions or feature networks in xDL is a straightforward 
 
    .. code-block:: python
 
-      from xDL import ShapeFunctionRegistry
-      from xDL.shapefuncs.baseshapefunction import ShapeFunction
+      from nampy import ShapeFunctionRegistry
+      from nampy.shapefuncs.baseshapefunction import ShapeFunction
 
       class MyCustomFunction(ShapeFunction):
 
@@ -423,11 +423,11 @@ Once you've defined and registered your custom shape function, you can easily in
           feature_dropout=0.0001
       )
 
-This example demonstrates how to use your defined network in the context of an additive model within xDL. You can include your custom shape function alongside built-in ones, allowing for versatile and tailored modeling.
+This example demonstrates how to use your defined network in the context of an additive model within nampy. You can include your custom shape function alongside built-in ones, allowing for versatile and tailored modeling.
 
 **Important Note:**
 
 Remember that if you do not add your custom network to the `ShapeFunctionRegistry`, it will result in an error. Registering your shape function is a crucial step to ensure that your model recognizes and incorporates your custom network seamlessly.
 
-With xDL's flexibility, you can extend and tailor the library to meet your specific modeling needs and explore innovative ways to enhance interpretability and performance.
+With nampy's flexibility, you can extend and tailor the library to meet your specific modeling needs and explore innovative ways to enhance interpretability and performance.
 
