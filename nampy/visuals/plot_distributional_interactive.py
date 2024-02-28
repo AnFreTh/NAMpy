@@ -5,7 +5,7 @@ from dash.dependencies import Input, Output
 import plotly.express as px
 import numpy as np
 import plotly.graph_objects as go
-from xDL.backend.interpretable_basemodel import AdditiveBaseModel
+from nampy.backend.interpretable_basemodel import AdditiveBaseModel
 
 
 def visualize_distributional_regression_predictions(model, datapoints=True, port=8050):

@@ -1,10 +1,10 @@
 import tensorflow as tf
 from keras.callbacks import *
 from sklearn.model_selection import KFold
-from xDL.backend.black_box_basemodel import BaseModel
-from xDL.shapefuncs.transformer_encoder import TabTransformerEncoder
-from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
-from xDL.visuals.analytics_plot import visual_analysis
+from nampy.backend.black_box_basemodel import BaseModel
+from nampy.shapefuncs.transformer_encoder import TabTransformerEncoder
+from nampy.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
+from nampy.visuals.analytics_plot import visual_analysis
 import warnings
 
 # Filter out the specific warning by category

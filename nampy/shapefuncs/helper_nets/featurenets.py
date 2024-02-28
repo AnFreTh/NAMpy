@@ -1,6 +1,6 @@
 import tensorflow as tf
 from keras import regularizers
-from xDL.shapefuncs.helper_nets.layers import (
+from nampy.shapefuncs.helper_nets.layers import (
     AddWeightsLayer,
     InterceptLayer,
     IdentityLayer,
@@ -8,7 +8,7 @@ from xDL.shapefuncs.helper_nets.layers import (
 )
 from tensorflow.keras.layers.experimental import RandomFourierFeatures
 from keras.layers import Add
-from xDL.shapefuncs.baseshapefunction import ShapeFunction
+from nampy.shapefuncs.baseshapefunction import ShapeFunction
 
 
 class ResidualBlock(tf.keras.layers.Layer):
