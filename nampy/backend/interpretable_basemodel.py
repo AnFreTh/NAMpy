@@ -1,5 +1,5 @@
-from xDL.utils.data_utils import DataModule
-from xDL.formulas.formulas import FormulaHandler
+from nampy.utils.data_utils import DataModule
+from nampy.formulas.formulas import FormulaHandler
 from keras.callbacks import *
 import pandas as pd
 import tensorflow as tf

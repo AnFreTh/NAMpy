@@ -1,16 +1,16 @@
 import tensorflow as tf
 from keras.callbacks import *
-from xDL.backend.black_box_basemodel import BaseModel
-from xDL.shapefuncs.transformer_encoder import FTTransformerEncoder
-from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
-from xDL.backend.families import *
-from xDL.visuals.plot_importances import (
+from nampy.backend.black_box_basemodel import BaseModel
+from nampy.shapefuncs.transformer_encoder import FTTransformerEncoder
+from nampy.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
+from nampy.backend.families import *
+from nampy.visuals.plot_importances import (
     visualize_importances,
     visualize_categorical_importances,
     visualize_heatmap_importances,
 )
-from xDL.visuals.plot_distributions import visualize_distribution
-from xDL.visuals.analytics_plot import visual_analysis
+from nampy.visuals.plot_distributions import visualize_distribution
+from nampy.visuals.analytics_plot import visual_analysis
 
 import warnings
 

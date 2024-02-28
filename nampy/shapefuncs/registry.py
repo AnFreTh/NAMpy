@@ -1,5 +1,5 @@
 # class_registry.py
-from xDL.shapefuncs.helper_nets.featurenets import ShapeFunction
+from nampy.shapefuncs.helper_nets.featurenets import ShapeFunction
 
 
 class ShapeFunctionRegistry:

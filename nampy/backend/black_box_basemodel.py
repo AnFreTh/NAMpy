@@ -1,4 +1,4 @@
-from xDL.utils.data_utils import DataModule
+from nampy.utils.data_utils import DataModule
 from keras.callbacks import *
 import pandas as pd
 import numpy as np

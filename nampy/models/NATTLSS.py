@@ -1,20 +1,20 @@
 import tensorflow as tf
 from keras.callbacks import *
-from xDL.backend.interpretable_basemodel import AdditiveBaseModel
+from nampy.backend.interpretable_basemodel import AdditiveBaseModel
 import numpy as np
-from xDL.shapefuncs.transformer_encoder import TransformerEncoder
-from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
-from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
-from xDL.shapefuncs.registry import ShapeFunctionRegistry
-from xDL.backend.families import *
+from nampy.shapefuncs.transformer_encoder import TransformerEncoder
+from nampy.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
+from nampy.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
+from nampy.shapefuncs.registry import ShapeFunctionRegistry
+from nampy.backend.families import *
 import warnings
-from xDL.visuals.plot_predictions import plot_additive_distributional_model
-from xDL.visuals.plot_importances import (
+from nampy.visuals.plot_predictions import plot_additive_distributional_model
+from nampy.visuals.plot_importances import (
     visualize_importances,
     visualize_categorical_importances,
     visualize_heatmap_importances,
 )
-from xDL.visuals.plot_distributions import visualize_distribution
+from nampy.visuals.plot_distributions import visualize_distribution
 
 # Filter out the specific warning by category
 warnings.filterwarnings("ignore", category=UserWarning)

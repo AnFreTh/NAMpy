@@ -3,24 +3,24 @@ from keras.callbacks import *
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from xDL.backend.interpretable_basemodel import AdditiveBaseModel
-from xDL.visuals.utils_graphing import generate_subplots
-from xDL.shapefuncs.transformer_encoder import TransformerEncoder
-from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
-from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
-from xDL.shapefuncs.registry import ShapeFunctionRegistry
+from nampy.backend.interpretable_basemodel import AdditiveBaseModel
+from nampy.visuals.utils_graphing import generate_subplots
+from nampy.shapefuncs.transformer_encoder import TransformerEncoder
+from nampy.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
+from nampy.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
+from nampy.shapefuncs.registry import ShapeFunctionRegistry
 import seaborn as sns
-from xDL.visuals.plot_predictions import plot_additive_model
-from xDL.visuals.plot_interactive import (
+from nampy.visuals.plot_predictions import plot_additive_model
+from nampy.visuals.plot_interactive import (
     visualize_regression_predictions,
     visualize_additive_model,
 )
-from xDL.visuals.plot_importances import (
+from nampy.visuals.plot_importances import (
     visualize_importances,
     visualize_categorical_importances,
     visualize_heatmap_importances,
 )
-from xDL.visuals.analytics_plot import visual_analysis
+from nampy.visuals.analytics_plot import visual_analysis
 import warnings
 
 # Filter out the specific warning by category

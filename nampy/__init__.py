@@ -1,6 +1,7 @@
-"""Top-level package for xDL."""
-# from xDL.models import *
-from xDL.shapefuncs.helper_nets.featurenets import (
+"""Top-level package for nampy."""
+
+# from nampy.models import *
+from nampy.shapefuncs.helper_nets.featurenets import (
     MLP,
     CubicSplineNet,
     PolynomialSplineNet,
@@ -9,7 +10,7 @@ from xDL.shapefuncs.helper_nets.featurenets import (
     ConstantWeightNet,
     RandomFourierNet,
 )
-from xDL.shapefuncs.registry import ShapeFunctionRegistry
+from nampy.shapefuncs.registry import ShapeFunctionRegistry
 
 # Register the classes by default when the package is imported
 ShapeFunctionRegistry.add_class("MLP", MLP)

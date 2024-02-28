@@ -1,21 +1,21 @@
 import tensorflow as tf
-from xDL.shapefuncs.registry import ShapeFunctionRegistry
-from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
+from nampy.shapefuncs.registry import ShapeFunctionRegistry
+from nampy.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
 import tensorflow as tf
 from keras.layers import Add
 import pandas as pd
 import numpy as np
-from xDL.backend.interpretable_basemodel import AdditiveBaseModel
-from xDL.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
+from nampy.backend.interpretable_basemodel import AdditiveBaseModel
+from nampy.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
 import warnings
 from scipy.stats import ttest_ind
-from xDL.shapefuncs.registry import ShapeFunctionRegistry
-from xDL.visuals.plot_predictions import plot_additive_model
-from xDL.visuals.plot_interactive import (
+from nampy.shapefuncs.registry import ShapeFunctionRegistry
+from nampy.visuals.plot_predictions import plot_additive_model
+from nampy.visuals.plot_interactive import (
     visualize_regression_predictions,
     visualize_additive_model,
 )
-from xDL.visuals.analytics_plot import visual_analysis
+from nampy.visuals.analytics_plot import visual_analysis
 
 # Filter out the specific warning by category
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -100,7 +100,6 @@ class NAM(AdditiveBaseModel):
                     output_dimension=num_classes,
                 )
             )
-
 
     def _initialize_feature_nets(self):
         self.feature_nets = []

@@ -11,7 +11,7 @@ def all_features_additive_model(df: pd.DataFrame, target: str, intercept: bool =
         intercept (bool, optional): if an intercept is fit or not. Defaults to False.
 
     Returns:
-        str: formula string that can be plugged into a xDL model
+        str: formula string that can be plugged into a nampy model
     """
     assert target in df.columns, f"Make sure that {target} is in the dataframe columns"
 
@@ -40,7 +40,7 @@ def all_features_pairwsie_interactions_additive_model(
         intercept (bool, optional): if an intercept is fit or not. Defaults to False.
 
     Returns:
-        str: formula string that can be plugged into a xDL model
+        str: formula string that can be plugged into a nampy model
     """
     assert target in df.columns, f"Make sure that {target} is in the dataframe columns"
 

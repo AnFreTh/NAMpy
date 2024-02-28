@@ -2,7 +2,7 @@
 
 import tensorflow_probability as tfp
 import tensorflow as tf
-from xDL.visuals.utils_graphing import *
+from nampy.visuals.utils_graphing import *
 
 
 tfd = tfp.distributions

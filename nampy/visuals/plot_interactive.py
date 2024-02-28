@@ -5,7 +5,7 @@ from dash.dependencies import Input, Output
 import plotly.express as px
 import numpy as np
 import plotly.graph_objects as go
-from xDL.backend.interpretable_basemodel import AdditiveBaseModel
+from nampy.backend.interpretable_basemodel import AdditiveBaseModel
 
 
 def visualize_regression_predictions(model, datapoints=True, port=8050):
@@ -96,9 +96,11 @@ def visualize_regression_predictions(model, datapoints=True, port=8050):
                 y=predictions,
                 mode=plot_mode,
                 name="Predictions",
-                line=dict(width=3, color="crimson")
-                if plot_mode == "lines"
-                else dict(color="crimson"),
+                line=(
+                    dict(width=3, color="crimson")
+                    if plot_mode == "lines"
+                    else dict(color="crimson")
+                ),
             )
         )
 
@@ -222,9 +224,11 @@ def visualize_additive_model(
                 y=predictions,
                 mode=plot_mode,
                 name="Predictions",
-                line=dict(width=3, color="crimson")
-                if plot_mode == "lines"
-                else dict(color="crimson"),  # Adjust the width of the line
+                line=(
+                    dict(width=3, color="crimson")
+                    if plot_mode == "lines"
+                    else dict(color="crimson")
+                ),  # Adjust the width of the line
             )
         )
 

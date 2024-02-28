@@ -1,5 +1,5 @@
 import tensorflow as tf
-from xDL.shapefuncs.transformerblock import TransformerBlock
+from nampy.shapefuncs.transformerblock import TransformerBlock
 import pandas as pd
 from tensorflow.keras.layers import (
     Concatenate,

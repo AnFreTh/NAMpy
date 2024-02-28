@@ -1,15 +1,15 @@
 import tensorflow as tf
 from keras.callbacks import *
 import numpy as np
-from xDL.backend.black_box_basemodel import BaseModel
-from xDL.shapefuncs.transformer_encoder import FTTransformerEncoder
-from xDL.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
-from xDL.visuals.plot_importances import (
+from nampy.backend.black_box_basemodel import BaseModel
+from nampy.shapefuncs.transformer_encoder import FTTransformerEncoder
+from nampy.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
+from nampy.visuals.plot_importances import (
     visualize_importances,
     visualize_categorical_importances,
     visualize_heatmap_importances,
 )
-from xDL.visuals.analytics_plot import visual_analysis
+from nampy.visuals.analytics_plot import visual_analysis
 
 import warnings
 
@@ -195,13 +195,11 @@ class FTTransformer(BaseModel):
             output = self.output_layer(x)
             return output
 
-
     def plot_importances(self, title="importances"):
         visualize_importances(self, title)
 
     def plot_categorical_importances(self, title="Importances"):
         visualize_categorical_importances(self, title)
-
 
     def plot_heatmap_importances(self, cat1, cat2):
         visualize_heatmap_importances(self, cat1, cat2)
@@ -210,4 +208,3 @@ class FTTransformer(BaseModel):
         dataset = self._get_dataset(self.data)
         preds = self.predict(dataset)["output"].squeeze()
         visual_analysis(preds, self.data[self.target_name])
-

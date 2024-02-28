@@ -1,4 +1,4 @@
-This document provides an overview of the preprocessing possibilities in xDL. The library includes a custom TensorFlow Keras layer (`Preprocessor`) and a comprehensive data management class (`DataModule`).
+This document provides an overview of the preprocessing possibilities in nampy. The library includes a custom TensorFlow Keras layer (`Preprocessor`) and a comprehensive data management class (`DataModule`).
 
 ## Preprocessor Class
 
@@ -13,7 +13,7 @@ The `Preprocessor` class is a TensorFlow Keras layer for preprocessing dataset f
 ### Usage
 
 ```python
-from xDL.data_utils import Preprocessor
+from nampy.data_utils import Preprocessor
 
 feature_preprocessing_dict = { ... }  # Define preprocessing details for each feature
 target_name = 'your_target_feature_name'
@@ -72,7 +72,7 @@ The DataModule class manages and preprocesses data for machine learning tasks. I
 
 ### Usage 
 ```python
-from xDL.data_utils import DataModule
+from nampy.data_utils import DataModule
 
 data = pd.DataFrame(...)  # Your data in a pandas DataFrame
 input_dict = { ... }  # Preprocessing details for each feature
@@ -89,7 +89,7 @@ Here's a list of available preprocessing functions along with their typical use 
 
 ## Available Preprocessing Functions/Encodings
 
-For data preprocessing, xDL offers a variety of functions and encodings, each designed to handle different data types effectively and enhance your data processing capabilities. Here's a comprehensive list:
+For data preprocessing, nampy offers a variety of functions and encodings, each designed to handle different data types effectively and enhance your data processing capabilities. Here's a comprehensive list:
 
 | #   | Encoding Type                   | Use Case                                                                                            | Advantages                                                                                  |
 | --- | ------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |

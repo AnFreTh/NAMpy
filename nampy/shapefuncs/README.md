@@ -1,6 +1,6 @@
 ## Overview
 
-This folder includes all pre-defined shape functions available ind xDL as well as the Parent Shapefunction needed for creating custom shapefunctions and adding them to the registry. 
+This folder includes all pre-defined shape functions available ind nampy as well as the Parent Shapefunction needed for creating custom shapefunctions and adding them to the registry. 
 All shapefunctions are implemented in tensorflow keras and inherit from the ShapeFunction ParentClass.
 Thus, while implemented in tensorflow.keras, each shapefunction needs to have a "forward" method for the forward pass implemented.
 
@@ -9,7 +9,7 @@ To create a custom ShapeFunction, do the following.
 
 1. **Inherit from the ShapeFunction Parentclass:**
 
-   When creating your custom shape function, ensure that your class inherits from the `ShapeFunction` parent class. This parent class provides essential functionalities for integrating your custom network into the xDL framework.
+   When creating your custom shape function, ensure that your class inherits from the `ShapeFunction` parent class. This parent class provides essential functionalities for integrating your custom network into the nampy framework.
 
 2. **Define the Network in a `forward(self, inputs)` Function:**
 
@@ -34,8 +34,8 @@ It's crucial to register your custom shape function with the `ShapeFunctionRegis
 
 
 ```python
-from xDL import ShapeFunctionRegistry
-from xDL.shapefuncs.baseshapefunction import ShapeFunction
+from nampy import ShapeFunctionRegistry
+from nampy.shapefuncs.baseshapefunction import ShapeFunction
 
 class MyCustomFunction(ShapeFunction):
 
@@ -62,13 +62,13 @@ nam = NAM(
 )
 ```
 
-This example demonstrates how to use your defined network in the context of an additive model within xDL. You can include your custom shape function alongside built-in ones, allowing for versatile and tailored modeling.
+This example demonstrates how to use your defined network in the context of an additive model within nampy. You can include your custom shape function alongside built-in ones, allowing for versatile and tailored modeling.
 
 
 
 
 
-So far, xDL includes the following default shape functions:
+So far, nampy includes the following default shape functions:
 
 **Available Shape Functions**
 

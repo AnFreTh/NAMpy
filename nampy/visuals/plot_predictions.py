@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from xDL.backend.interpretable_basemodel import AdditiveBaseModel
+from nampy.backend.interpretable_basemodel import AdditiveBaseModel
 
 
 def plot_interaction(ax, preds, key, data):

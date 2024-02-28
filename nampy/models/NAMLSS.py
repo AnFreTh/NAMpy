@@ -1,20 +1,20 @@
 import tensorflow_probability as tfp
 import tensorflow as tf
 from keras.layers import Add
-from xDL.shapefuncs.helper_nets.layers import InterceptLayer
+from nampy.shapefuncs.helper_nets.layers import InterceptLayer
 import warnings
-from xDL.shapefuncs.registry import ShapeFunctionRegistry
+from nampy.shapefuncs.registry import ShapeFunctionRegistry
 import numpy as np
-from xDL.backend.interpretable_basemodel import AdditiveBaseModel
-from xDL.backend.families import *
-from xDL.visuals.plot_predictions import (
+from nampy.backend.interpretable_basemodel import AdditiveBaseModel
+from nampy.backend.families import *
+from nampy.visuals.plot_predictions import (
     plot_additive_distributional_model,
 )
-from xDL.visuals.plot_distributional_interactive import (
+from nampy.visuals.plot_distributional_interactive import (
     visualize_distributional_regression_predictions,
     visualize_distributional_additive_model,
 )
-from xDL.visuals.plot_distributions import visualize_distribution
+from nampy.visuals.plot_distributions import visualize_distribution
 import warnings
 
 # Filter out the specific warning by category
