@@ -33,6 +33,7 @@ class TabTransformerLSS(BaseModel):
         encoder=None,
         binning_task="regression",
         loss="nll",
+        **distribution_params,
     ):
         """
         Initialize the TabTransformer model as described in https://arxiv.org/pdf/2012.06678.pdf.
@@ -101,6 +102,7 @@ class TabTransformerLSS(BaseModel):
         self.model_built = False
         self.loss_func = loss
         self.family = family
+        self.distributional_params = distribution_params
 
     def build(self, input_shape):
         """
@@ -134,70 +136,33 @@ class TabTransformerLSS(BaseModel):
             )
 
     def _initialize_family(self):
-        if self.family not in [
-            "Normal",
-            "Logistic",
-            "InverseGamma",
-            "Poisson",
-            "JohnsonSU",
-            "Gamma",
-            "Beta",
-            "Exponential",
-            "StudentT",
-            "Bernoulli",
-            "Chi2",
-            "Laplace",
-            "Cauchy",
-            "Binomial",
-            "NegativeBinomial",
-            "Uniform",
-            "Weibull",
-        ]:
-            raise ValueError(
-                "The family must be in ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', "
-                "'Gamma', 'Beta', 'Exponential', 'StudentT', 'Bernoulli', 'Chi2', 'Laplace', 'Cauchy', "
-                "'Binomial', 'NegativeBinomial', 'Uniform', 'Weibull']. If you wish further distributions "
-                "to be implemented please raise an Issue"
-            )
+        distribution_classes = {
+            "Normal": Normal,
+            "Logistic": Logistic,
+            "InverseGamma": InverseGamma,
+            "Poisson": Poisson,
+            "JohnsonSU": JohnsonSU,
+            "Gamma": Gamma,
+            "Beta": Beta,
+            "Exponential": Exponential,
+            "StudentT": StudentT,
+            "Bernoulli": Bernoulli,
+            "Chi2": Chi2,
+            "Laplace": Laplace,
+            "Cauchy": Cauchy,
+            "Binomial": Binomial,
+            "NegativeBinomial": NegativeBinomial,
+            "Uniform": Uniform,
+            "Weibull": Weibull,
+        }
 
-        if self.family == "Normal":
-            self.family = Normal()
-        elif self.family == "Logistic":
-            self.family = Logistic()
-        elif self.family == "InverseGamma":
-            self.family = InverseGamma()
-        elif self.family == "Poisson":
-            self.family = Poisson()
-        elif self.family == "JohnsonSU":
-            self.family = JohnsonSU()
-        elif self.family == "Gamma":
-            self.family = Gamma()
-        elif self.family == "Beta":
-            self.family = Beta()
-        elif self.family == "Exponential":
-            self.family = Exponential()
-        elif self.family == "StudentT":
-            self.family = StudentT()
-        elif self.family == "Bernoulli":
-            self.family = Bernoulli()
-        elif self.family == "Chi2":
-            self.family = Chi2()
-        elif self.family == "Laplace":
-            self.family = Laplace()
-        elif self.family == "cauchy":
-            self.family = Cauchy()
-        elif self.family == "Binomial":
-            self.family = Binomial()
-        elif self.family == "NegativeBinomial":
-            self.family = NegativeBinomial()
-        elif self.family == "Uniform":
-            self.family = Uniform()
-        elif self.family == "Weibull":
-            self.family = Weibull()
-        else:
-            raise ValueError(
-                "Something went wrong with the specified Family. Please documentation or get in contact via an Issue"
+        if self.family in distribution_classes:
+            # Pass additional distribution_params to the constructor of the distribution class
+            self.family = distribution_classes[self.family](
+                **self.distributional_params
             )
+        else:
+            raise ValueError("Unsupported family: {}".format(self.family))
 
     def _initialize_transformer_mlp(self):
         self.mlp_input_dim = self.embedding_dim * len(self.encoder.categorical)

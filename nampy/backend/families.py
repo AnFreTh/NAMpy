@@ -13,6 +13,18 @@ class BaseFamily:
         self._name = name
         self.param_count = param_count
 
+        self.predefined_transforms = {
+            "positive": lambda x: tf.math.softplus(x),
+            "none": lambda x: x,
+            "sigmoid": lambda x: tf.sigmoid(x),
+            "exp": lambda x: tf.exp(x),
+            "sqrt": lambda x: tf.sqrt(x),
+            "log": lambda x: tf.math.log(x + 1e-6),
+            "probabilities": lambda x: tf.nn.softmax(x),
+            "sigmoid": lambda x: tf.nn.sigmoid(x),
+            "relu": lambda x: tf.nn.relu(x),
+        }
+
     @property
     def name(self):
         return self._name
@@ -21,19 +33,14 @@ class BaseFamily:
     def parameter_count(self):
         return self.param_count
 
-    def transform_parameter(self, x, constraint):
-        if constraint == "positive":
-            return tf.math.softplus(x)
-        elif constraint == "none":
-            return x
-        elif constraint == "sigmoid":
-            return tf.sigmoid(x)
-        elif constraint == "exp":
-            return tf.exp(x)
-        elif constraint == "sqrt":
-            return tf.sqrt(x)
-        else:
-            raise ValueError(f"Unknown constraint: {constraint}")
+    def get_transform(self, transform_name):
+        """
+        Retrieve a transformation function by name, or return the function if it's custom.
+        """
+        if callable(transform_name):
+            # Custom transformation function provided
+            return transform_name
+        return self.predefined_transforms.get(transform_name, lambda x: x)
 
     def transform(self, x):
         raise NotImplementedError("This method should be implemented by subclasses.")
@@ -54,17 +61,20 @@ class BaseFamily:
 
 
 class Normal(BaseFamily):
-    def __init__(self, name="Normal"):
+    def __init__(self, name="Normal", loc_transform="none", scale_transform="positive"):
         BaseFamily.__init__(self, name, param_count=2)
         self.param_names = ["loc", "scale"]
+
+        self.mean_transform = self.get_transform(loc_transform)
+        self.var_transform = self.get_transform(scale_transform)
 
     def __call__(self, x):
         loc, scale = self.transform(x)
         return tfd.Normal(loc=loc, scale=scale)
 
     def transform(self, x):
-        loc = self.transform_parameter(x[:, 0], "none")
-        scale = self.transform_parameter(x[:, 1], "positive")
+        loc = self.mean_transform(x[:, self.param_names.index("loc")])
+        scale = self.var_transform(x[:, self.param_names.index("scale")])
         return loc, scale
 
     def KL_divergence(self, y_true, predicted_dist):
@@ -74,251 +84,424 @@ class Normal(BaseFamily):
 
 
 class Logistic(BaseFamily):
-    def __init__(self, name="Logistic"):
-        super().__init__(name, param_count=2)
+    def __init__(
+        self, name="Logistic", loc_transform="none", scale_transform="positive"
+    ):
+        BaseFamily.__init__(self, name, param_count=2)
         self.param_names = ["loc", "scale"]
+
+        self.mean_transform = self.get_transform(loc_transform)
+        self.var_transform = self.get_transform(scale_transform)
 
     def __call__(self, x):
         loc, scale = self.transform(x)
         return tfd.Logistic(loc=loc, scale=scale)
 
     def transform(self, x):
-        loc = self.transform_parameter(x[:, 0], "none")
-        scale = self.transform_parameter(x[:, 1], "positive")
+        loc = self.mean_transform(x[:, self.param_names.index("loc")])
+        scale = self.var_transform(x[:, self.param_names.index("scale")])
         return loc, scale
 
 
 class Poisson(BaseFamily):
-    def __init__(self, name="Poisson"):
+    def __init__(self, name="Poisson", rate_transform="positive"):
         BaseFamily.__init__(self, name, param_count=1)
         self.param_names = ["rate"]
+        self.rate_transform = self.get_transform(rate_transform)
 
-    def __call__(self, *args, **kwargs):
-        rate = self.transform(args)
-        return self.family(rate=rate, **kwargs)
+    def __call__(self, x):
+        rate = self.transform(x)
+        return tfd.Poisson(rate=rate)
 
     def transform(self, x):
-        rate = self.transform_parameter(x, "positive")
+        rate = self.rate_transform(x[:, self.param_names.index("rate")])
         return rate
 
 
 class Gamma(BaseFamily):
-    def __init__(self, name="Gamma"):
+    def __init__(
+        self,
+        name="Gamma",
+        concentration_transform="positive",
+        rate_transform="positive",
+    ):
         BaseFamily.__init__(self, name, param_count=2)
         self.param_names = ["concentration", "rate"]
+        self.concentration_transform = self.get_transform(concentration_transform)
+        self.rate_transform = self.get_transform(rate_transform)
 
-    def __call__(self, *args, **kwargs):
-        concentration, rate = self.transform(args)
-        return self.family(concentration=concentration, rate=rate, **kwargs)
+    def __call__(self, x):
+        concentration, rate = self.transform(x)
+        return tfd.Gamma(concentration=concentration, rate=rate)
 
     def transform(self, x):
-        concentration = self.transform_parameter(x[:, 0], "positive")
-        rate = self.transform_parameter(x[:, 1], "positive")
+        concentration = self.concentration_transform(
+            x[:, self.param_names.index("concentration")]
+        )
+        rate = self.rate_transform(x[:, self.param_names.index("rate")])
         return concentration, rate
 
 
 class JohnsonSU(BaseFamily):
-    def __init__(self, name="JohnsonSU"):
-        super(JohnsonSU, self).__init__(name, param_count=4)
+    def __init__(
+        self,
+        name="JohnsonSU",
+        loc_transform="none",
+        scale_transform="positive",
+        skewness_transform="none",
+        tailweight_transform="positive",
+    ):
+        BaseFamily.__init__(self, name, param_count=4)
         self.param_names = ["loc", "scale", "skewness", "tailweight"]
+        self.loc_transform = self.get_transform(loc_transform)
+        self.scale_transform = self.get_transform(scale_transform)
+        self.skewness_transform = self.get_transform(skewness_transform)
+        self.tailweight_transform = self.get_transform(tailweight_transform)
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, x):
         # Define parameter transformations specific to JohnsonSU
-        skewness, tailweight, loc, scale = self.transform(args)
-        return self.family(
+        loc, scale, skewness, tailweight = self.transform(x)
+        return self.JohnsonSU(
             skewness=skewness,
             tailweight=tailweight,
             loc=loc,
             scale=scale,
-            **kwargs,
         )
 
     def transform(self, x):
-        skewness = self.transform_parameter(x[:, 0], "none")  # Example transformation
-        tailweight = self.transform_parameter(x[:, 1], "positive")
-        loc = self.transform_parameter(x[:, 2], "none")
-        scale = self.transform_parameter(x[:, 3], "positive")
-        return skewness, tailweight, loc, scale
+        loc = self.loc_transform(x[:, self.param_names.index("loc")])
+        scale = self.scale_transform(x[:, self.param_names.index("scale")])
+        skewness = self.skewness_transform(x[:, self.param_names.index("skewness")])
+        tailweight = self.tailweight_transform(
+            x[:, self.param_names.index("tailweight")]
+        )
+
+        return loc, scale, skewness, tailweight
 
 
 class InverseGamma(BaseFamily):
-    def __init__(self, name="InverseGamma"):
-        super(InverseGamma, self).__init__(name, param_count=2)
+    def __init__(
+        self,
+        name="InverseGamma",
+        concentration_transform="positive",
+        rate_transform="positive",
+    ):
+        BaseFamily.__init__(self, name, param_count=2)
         self.param_names = ["concentration", "rate"]
+        self.concentration_transform = self.get_transform(concentration_transform)
+        self.rate_transform = self.get_transform(rate_transform)
 
-    def __call__(self, *args, **kwargs):
-        concentration, rate = self.transform(args)
-        return self.family(concentration=concentration, rate=rate, **kwargs)
+    def __call__(self, x):
+        concentration, rate = self.transform(x)
+        return tfd.Gamma(concentration=concentration, rate=rate)
 
     def transform(self, x):
-        concentration = self.transform_parameter(x[:, 0], "positive")
-        rate = self.transform_parameter(x[:, 1], "positive")
+        concentration = self.concentration_transform(
+            x[:, self.param_names.index("concentration")]
+        )
+        rate = self.rate_transform(x[:, self.param_names.index("rate")])
         return concentration, rate
 
 
 class Beta(BaseFamily):
-    def __init__(self, name="Beta"):
-        super(Beta, self).__init__(name, tfd.Beta, param_count=2)
-        self.param_names = ["concentration0", "concentration1"]
+    def __init__(
+        self, name="Beta", alpha_transform="positive", beta_transform="positive"
+    ):
+        super().__init__(name, param_count=2)
+        self.param_names = ["alpha", "beta"]
 
-    def __call__(self, *args, **kwargs):
-        concentration1, concentration0 = self.transform(args)
-        return self.family(
-            concentration1=concentration1, concentration0=concentration0, **kwargs
-        )
+        # Transform functions to ensure alpha and beta parameters are positive
+        self.alpha_transform = self.get_transform(alpha_transform)
+        self.beta_transform = self.get_transform(beta_transform)
 
-    def transform(self, x):
-        concentration1 = self.transform_parameter(x[:, 0], "positive")
-        concentration0 = self.transform_parameter(x[:, 1], "positive")
-        return concentration1, concentration0
-
-
-class Exponential(BaseFamily):
-    def __init__(self, name="Exponential"):
-        super(Exponential, self).__init__(name, param_count=1)
-        self.param_names = ["rate"]
-
-    def __call__(self, *args, **kwargs):
-        rate = self.transform(args)
-        return self.family(rate=rate, **kwargs)
+    def __call__(self, x):
+        alpha, beta = self.transform(x)
+        return tfd.Beta(concentration1=alpha, concentration0=beta)
 
     def transform(self, x):
-        rate = self.transform_parameter(x, "positive")
-        return rate
+        # Apply the transformations to the input to get alpha and beta parameters
+        alpha = self.alpha_transform(x[:, self.param_names.index("alpha")])
+        beta = self.beta_transform(x[:, self.param_names.index("beta")])
+        return alpha, beta
 
 
 class StudentT(BaseFamily):
-    def __init__(self, name="StudentT"):
-        super(StudentT, self).__init__(name, param_count=3)
+    def __init__(
+        self,
+        name="StudentT",
+        df_transform="positive",
+        loc_transform="none",
+        scale_transform="positive",
+    ):
+        super().__init__(name, param_count=3)
         self.param_names = ["df", "loc", "scale"]
 
-    def __call__(self, *args, **kwargs):
-        df, loc, scale = self.transform(args)
-        return self.family(df=df, loc=loc, scale=scale, **kwargs)
+        # Transform functions to ensure parameters are appropriate
+        self.df_transform = self.get_transform(
+            df_transform
+        )  # degrees of freedom, positive
+        self.loc_transform = self.get_transform(
+            loc_transform
+        )  # location, any real number
+        self.scale_transform = self.get_transform(scale_transform)  # scale, positive
+
+    def __call__(self, x):
+        df, loc, scale = self.transform(x)
+        return tfd.StudentT(df=df, loc=loc, scale=scale)
 
     def transform(self, x):
-        df = self.transform_parameter(x[:, 0], "positive")
-        loc = self.transform_parameter(x[:, 1], "none")
-        scale = self.transform_parameter(x[:, 2], "positive")
+        # Apply the transformations to the input to get the parameters
+        df = self.df_transform(x[:, self.param_names.index("df")])
+        loc = self.loc_transform(x[:, self.param_names.index("loc")])
+        scale = self.scale_transform(x[:, self.param_names.index("scale")])
         return df, loc, scale
 
 
-class Bernoulli(BaseFamily):
-    def __init__(self, name="Bernoulli"):
-        super(Bernoulli, self).__init__(name, param_count=1)
-        self.param_names = ["logits"]
+class Gumbel(BaseFamily):
+    def __init__(
+        self, name="Gumbel", location_transform="none", scale_transform="positive"
+    ):
+        super().__init__(name, param_count=2)
+        self.param_names = ["location", "scale"]
 
-    def __call__(self, *args, **kwargs):
-        logits = self.transform(args)
-        return self.family(logits=logits, **kwargs)
+        # Transformation functions to ensure scale parameter is positive
+        self.location_transform = self.get_transform(location_transform)
+        self.scale_transform = self.get_transform(scale_transform)
+
+    def __call__(self, x):
+        location, scale = self.transform(x)
+        return tfd.Gumbel(loc=location, scale=scale)
 
     def transform(self, x):
-        # Using logits as the parameter
-        logits = x  # No transformation needed
-        return logits
+        # Apply the transformations to the input to get location and scale parameters
+        location = self.location_transform(x[:, self.param_names.index("location")])
+        scale = self.scale_transform(x[:, self.param_names.index("scale")])
+        return location, scale
+
+
+class Dirichlet(BaseFamily):
+    def __init__(
+        self, name="Dirichlet", concentration_transform="positive", param_count=1
+    ):
+        # Assuming param_count is the dimensionality of the concentration vector
+        super().__init__(name, param_count)
+        self.param_names = ["concentration"]
+        self.concentration_transform = self.get_transform(concentration_transform)
+
+    def __call__(self, x):
+        concentration = self.transform(x)
+        return tfd.Dirichlet(concentration=concentration)
+
+    def transform(self, x):
+        # Apply the transformation to the input to get the concentration parameter vector
+        concentration = self.concentration_transform(x)
+        return concentration
+
+
+class Weibull(BaseFamily):
+    def __init__(
+        self,
+        name="Weibull",
+        scale_transform="positive",
+        concentration_transform="positive",
+    ):
+        super().__init__(name, param_count=2)
+        self.param_names = ["scale", "concentration"]
+
+        # Transformation functions to ensure parameters are positive
+        self.scale_transform = self.get_transform(scale_transform)
+        self.concentration_transform = self.get_transform(concentration_transform)
+
+    def __call__(self, x):
+        scale, concentration = self.transform(x)
+        return tfd.Weibull(scale=scale, concentration=concentration)
+
+    def transform(self, x):
+        # Apply the transformations to the input to get scale and concentration parameters
+        scale = self.scale_transform(x[:, self.param_names.index("scale")])
+        concentration = self.concentration_transform(
+            x[:, self.param_names.index("concentration")]
+        )
+        return scale, concentration
+
+
+class Exponential(BaseFamily):
+    def __init__(self, name="Exponential", rate_transform="positive"):
+        super().__init__(name, param_count=1)
+        self.param_names = ["rate"]
+
+        # Transformation function to ensure the rate parameter is positive
+        self.rate_transform = self.get_transform(rate_transform)
+
+    def __call__(self, x):
+        rate = self.transform(x)
+        return tfd.Exponential(rate=rate)
+
+    def transform(self, x):
+        # Apply the transformation to the input to get the rate parameter
+        rate = self.rate_transform(x[:, self.param_names.index("rate")])
+        return rate
+
+
+class Bernoulli(BaseFamily):
+    def __init__(self, name="Bernoulli", probability_transform="sigmoid"):
+        super().__init__(name, param_count=1)
+        self.param_names = ["probability"]
+
+        # Transformation function to ensure the probability parameter is between 0 and 1
+        self.probability_transform = self.get_transform(probability_transform)
+
+    def __call__(self, x):
+        probability = self.transform(x)
+        return tfd.Bernoulli(probs=probability)
+
+    def transform(self, x):
+        # Apply the transformation to the input to get the probability parameter
+        probability = self.probability_transform(
+            x[:, self.param_names.index("probability")]
+        )
+        return probability
 
 
 class Chi2(BaseFamily):
-    def __init__(self, name="Chi2"):
-        super(Chi2, self).__init__(name, param_count=1)
+    def __init__(self, name="Chi2", df_transform="positive"):
+        super().__init__(name, param_count=1)
         self.param_names = ["df"]
 
-    def __call__(self, *args, **kwargs):
-        df = self.transform(args)
-        return self.family(df=df, **kwargs)
+        # Transformation function to ensure the degrees of freedom parameter is positive
+        self.df_transform = self.get_transform(df_transform)
+
+    def __call__(self, x):
+        df = self.transform(x)
+        return tfd.Chi2(df=df)
 
     def transform(self, x):
-        df = self.transform_parameter(x, "positive")
+        # Apply the transformation to the input to get the degrees of freedom parameter
+        df = self.df_transform(x[:, self.param_names.index("df")])
         return df
 
 
 class Laplace(BaseFamily):
-    def __init__(self, name="Laplace"):
-        super(Laplace, self).__init__(name, param_count=2)
-        self.param_names = ["loc", "scale"]
+    def __init__(
+        self, name="Laplace", location_transform="none", scale_transform="positive"
+    ):
+        super().__init__(name, param_count=2)
+        self.param_names = ["location", "scale"]
 
-    def __call__(self, *args, **kwargs):
-        loc, scale = self.transform(args)
-        return self.family(loc=loc, scale=scale, **kwargs)
+        # Transformation functions
+        self.location_transform = self.get_transform(
+            location_transform
+        )  # Location can be any real number
+        self.scale_transform = self.get_transform(
+            scale_transform
+        )  # Scale must be positive
+
+    def __call__(self, x):
+        location, scale = self.transform(x)
+        return tfd.Laplace(loc=location, scale=scale)
 
     def transform(self, x):
-        loc = self.transform_parameter(x[:, 0], "none")
-        scale = self.transform_parameter(x[:, 1], "positive")
-        return loc, scale
+        # Apply the transformations to the input to get location and scale parameters
+        location = self.location_transform(x[:, self.param_names.index("location")])
+        scale = self.scale_transform(x[:, self.param_names.index("scale")])
+        return location, scale
 
 
 class Cauchy(BaseFamily):
-    def __init__(self, name="Cauchy"):
-        super(Cauchy, self).__init__(name, param_count=2)
-        self.param_names = ["loc", "scale"]
+    def __init__(
+        self, name="Cauchy", location_transform="none", scale_transform="positive"
+    ):
+        super().__init__(name, param_count=2)
+        self.param_names = ["location", "scale"]
 
-    def __call__(self, *args, **kwargs):
-        loc, scale = self.transform(args)
-        return self.family(loc=loc, scale=scale, **kwargs)
+        # Transformation functions
+        self.location_transform = self.get_transform(
+            location_transform
+        )  # Location can be any real number
+        self.scale_transform = self.get_transform(
+            scale_transform
+        )  # Scale must be positive
+
+    def __call__(self, x):
+        location, scale = self.transform(x)
+        return tfd.Cauchy(loc=location, scale=scale)
 
     def transform(self, x):
-        loc = self.transform_parameter(x[:, 0], "none")
-        scale = self.transform_parameter(x[:, 1], "positive")
-        return loc, scale
+        # Apply the transformations to the input to get location and scale parameters
+        location = self.location_transform(x[:, self.param_names.index("location")])
+        scale = self.scale_transform(x[:, self.param_names.index("scale")])
+        return location, scale
 
 
 class Binomial(BaseFamily):
-    def __init__(self, name="Binomial"):
-        super(Binomial, self).__init__(name, param_count=2)
-        self.param_names = ["total_count", "logits"]
+    def __init__(
+        self,
+        name="Binomial",
+        total_count_transform="positive",
+        probs_transform="sigmoid",
+    ):
+        super().__init__(name, param_count=2)
+        self.param_names = ["total_count", "probs"]
 
-    def __call__(self, *args, **kwargs):
-        logits = self.transform(args)
-        return self.family(total_count=self.total_count, logits=logits, **kwargs)
+        # Transformation functions
+        self.total_count_transform = self.get_transform(total_count_transform)
+        self.probs_transform = self.get_transform(probs_transform)
+
+    def __call__(self, x):
+        total_count, probs = self.transform(x)
+        return tfd.Binomial(total_count=total_count, probs=probs)
 
     def transform(self, x):
-        # Using logits as the parameter
-        logits = x  # No transformation needed
-        return logits
+        # Apply the transformations to the input to get total_count and probs parameters
+        total_count = self.total_count_transform(
+            x[:, self.param_names.index("total_count")]
+        )
+        probs = self.probs_transform(x[:, self.param_names.index("probs")])
+        return total_count, probs
 
 
 class NegativeBinomial(BaseFamily):
-    def __init__(self, name="NegativeBinomial"):
-        super(NegativeBinomial, self).__init__(name, param_count=2)
-        self.param_names = ["total_count", "logits"]
+    def __init__(
+        self,
+        name="NegativeBinomial",
+        total_count_transform="positive",
+        probs_transform="sigmoid",
+    ):
+        super().__init__(name, param_count=2)
+        self.param_names = ["total_count", "probs"]
 
-    def __call__(self, *args, **kwargs):
-        logits, rate = self.transform(args)
-        return self.family(
-            total_count=self.total_count, logits=logits, rate=rate, **kwargs
-        )
+        # Transformation functions
+        self.total_count_transform = self.get_transform(total_count_transform)
+        self.probs_transform = self.get_transform(probs_transform)
+
+    def __call__(self, x):
+        total_count, probs = self.transform(x)
+        return tfd.NegativeBinomial(total_count=total_count, probs=probs)
 
     def transform(self, x):
-        logits = x[:, 0]  # No transformation needed for logits
-        rate = self.transform_parameter(x[:, 1], "positive")
-        return logits, rate
+        # Apply the transformations to the input to get total_count and probs parameters
+        total_count = self.total_count_transform(
+            x[:, self.param_names.index("total_count")]
+        )
+        probs = self.probs_transform(x[:, self.param_names.index("probs")])
+        return total_count, probs
 
 
 class Uniform(BaseFamily):
-    def __init__(self, name="Uniform"):
-        super(Uniform, self).__init__(name, param_count=2)
+    def __init__(self, name="Uniform", low_transform="none", high_transform="positive"):
+        super().__init__(name, param_count=2)
         self.param_names = ["low", "high"]
 
-    def __call__(self, *args, **kwargs):
-        low, high = self.transform(args)
-        return self.family(low=low, high=high, **kwargs)
+        # Transformation functions
+        self.low_transform = self.get_transform(low_transform)
+        self.high_transform = self.get_transform(high_transform)
+
+    def __call__(self, x):
+        low, high = self.transform(x)
+        return tfd.Uniform(low=low, high=high)
 
     def transform(self, x):
-        low = self.transform_parameter(x[:, 0], "none")
-        high = self.transform_parameter(x[:, 1], "none")
+        # Apply the transformations to the input to get low and high parameters
+        low = self.low_transform(x[:, self.param_names.index("low")])
+        high = self.high_transform(x[:, self.param_names.index("high")])
         return low, high
-
-
-class Weibull(BaseFamily):
-    def __init__(self, name="Weibull"):
-        super(Weibull, self).__init__(name, param_count=2)
-        self.param_names = ["concentration", "scale"]
-
-    def __call__(self, *args, **kwargs):
-        concentration, scale = self.transform(args)
-        return self.family(concentration=concentration, scale=scale, **kwargs)
-
-    def transform(self, x):
-        concentration = self.transform_parameter(x[:, 0], "positive")
-        scale = self.transform_parameter(x[:, 1], "positive")
-        return concentration, scale
