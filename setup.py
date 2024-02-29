@@ -18,7 +18,7 @@ setup(
     description="A python package for explainable deep learning models for tabular data with a focus on additive and distributional regression.",  # A short description of your package
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/AFThielmann/NAMpy",  # Replace with the URL to your package's repository
+    url="https://github.com/AnFreTh/NAMpy",  # Replace with the URL to your package's repository
     packages=find_packages(
         exclude=["*.tests", "*.tests.*", "tests.*", "tests", "*.ipynb", "*.ipynb.*"]
     ),
