@@ -213,13 +213,26 @@ class NAM(AdditiveBaseModel):
 
             return preds
 
-    def plot(self, hist=True):
-        plot_additive_model(self, hist=hist)
+    def plot(self, hist=True, port=8050, interactive=True, interaction=True):
+        """NAM visualization function
 
-    def plot_single_effects(self, port=8050):
+        Args:
+            port (int, optional): port used for dash/plotly. Defaults to 8050.
+            interactive (bool, optional): if true, a dash/plotly plot is created. Defaults to True.
+            interaction (bool, optional): if true, all pairwise feature interactions are plotted. Defaults to True.
+        """
+        if interactive:
+            if interaction:
+                self._plot_all_effects(port=port)
+            else:
+                self._plot_single_effects(port=port)
+        else:
+            plot_additive_model(self, hist=hist)
+
+    def _plot_single_effects(self, port=8050):
         visualize_regression_predictions(self, port=port)
 
-    def plot_all_effects(self, port=8050):
+    def _plot_all_effects(self, port=8050):
         visualize_additive_model(self, port=port)
 
     def plot_analysis(self):
@@ -237,7 +250,7 @@ class NAM(AdditiveBaseModel):
         """
         preds = self.predict(self.training_dataset)
 
-        # Sum of all predictions (assuming they are numpy arrays or similar)
+        # Sum of all predictions
         all_preds = preds["output"]
 
         result_df = pd.DataFrame(columns=["feature", "t-stat", "p_value"])

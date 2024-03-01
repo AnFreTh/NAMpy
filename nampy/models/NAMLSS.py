@@ -290,11 +290,24 @@ class NAMLSS(AdditiveBaseModel):
         preds = self.predict(self.training_dataset)["summed_output"]
         visualize_distribution(self.family, preds)
 
-    def plot(self):
-        plot_additive_distributional_model(self)
+    def plot(self, port=8050, interactive=True, interaction=True):
+        """NAMLSS visualization function
 
-    def plot_additive_interactive(self, port=8505):
+        Args:
+            port (int, optional): port used for dash/plotly. Defaults to 8050.
+            interactive (bool, optional): if true, a dash/plotly plot is created. Defaults to True.
+            interaction (bool, optional): if true, all pairwise feature interactions are plotted. Defaults to True.
+        """
+        if interactive:
+            if interaction:
+                self._plot_all_effects(port=port)
+            else:
+                self._plot_single_effects(port=port)
+        else:
+            plot_additive_distributional_model(self)
+
+    def _plot_single_effects(self, port=8505):
         visualize_distributional_regression_predictions(self, port=port)
 
-    def plot_all_interactive(self, port=8505):
+    def _plot_all_effects(self, port=8505):
         visualize_distributional_additive_model(self, port=port)
