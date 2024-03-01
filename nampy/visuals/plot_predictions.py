@@ -18,10 +18,12 @@ def plot_interaction(ax, preds, key, data):
     """
     # Ensure the key indicates an interaction effect
 
-    assert "_._" in key, "The provided key does not indicate an interaction effect."
+    assert (
+        len(key) == 2
+    ), f"There went something wrong. nampy only supports plotting of pairwrise interaction effects, however, there were {len(key)} input features passed for plotting."
 
     # Split the key to get individual feature names
-    feature1, feature2 = key.split("_._")
+    feature1, feature2 = key[0], key[1]
 
     # Plot the contour of predictions
     cs = ax.contourf(
@@ -34,8 +36,8 @@ def plot_interaction(ax, preds, key, data):
 
     # Add a scatter plot of the actual data points
     ax.scatter(
-        data[feature1 + "_."],
-        data[feature2 + "_."],
+        data[feature1],
+        data[feature2],
         c="black",
         label="Scatter Points",
         s=5,
@@ -64,10 +66,12 @@ def plot_interaction_lss(ax, preds, key, data, param_idx):
     """
     # Ensure the key indicates an interaction effect
 
-    assert "_._" in key, "The provided key does not indicate an interaction effect."
+    assert (
+        len(key) == 2
+    ), f"There went something wrong. nampy only supports plotting of pairwrise interaction effects, however, there were {len(key)} input features passed for plotting."
 
     # Split the key to get individual feature names
-    feature1, feature2 = key.split("_._")
+    feature1, feature2 = key[0], key[1]
 
     # Plot the contour of predictions
     cs = ax.contourf(
@@ -80,8 +84,8 @@ def plot_interaction_lss(ax, preds, key, data, param_idx):
 
     # Add a scatter plot of the actual data points
     ax.scatter(
-        data[feature1 + "_."],
-        data[feature2 + "_."],
+        data[feature1],
+        data[feature2],
         c="black",
         label="Scatter Points",
         s=5,
@@ -158,7 +162,6 @@ def plot_continuous_feature(
     plotting_data: Data used for plotting, separate from the training or test data.
     hist (bool): Whether to include a histogram for the feature. Default is False.
     """
-
     ax.scatter(
         data[key],
         data[target_name],
@@ -218,19 +221,20 @@ def plot_additive_model(
     axs = axs.flatten()  # Flatten in case of a grid
 
     for idx, (key, value) in enumerate(preds.items()):
-        print(key)
+        shapefunc_keys = [k for k in model.inputs.keys() if k.startswith(key)]
+        count = len(shapefunc_keys)
         ax = axs[idx]  # Get the current Axes instance on the grid
 
-        if "_._" in key:
-            plot_interaction(ax, preds[key], key, model.data)
-        else:
+        if count == 2:
+            plot_interaction(ax, value, shapefunc_keys, model.data)
+        elif count == 1:
             if key in model.CAT_FEATURES:
                 plot_categorical_feature(
                     ax,
                     model.data,
-                    key,
+                    shapefunc_keys[0],
                     model.target_name,
-                    preds[key],
+                    value,
                     model.plotting_data,
                     hist,
                 )
@@ -238,12 +242,15 @@ def plot_additive_model(
                 plot_continuous_feature(
                     ax,
                     model.data,
-                    key,
+                    shapefunc_keys[0],
                     model.target_name,
-                    preds[key],
+                    value,
                     model.plotting_data,
                     hist,
                 )
+
+        else:
+            pass
 
         # Adjust layout for each subplot
         ax.set_title(f"Effect of {key}")
@@ -287,16 +294,20 @@ def plot_additive_distributional_model(
 
     for dist_param in range(model.family.param_count):
         for idx, (key, value) in enumerate(preds.items()):
+            shapefunc_keys = [k for k in model.inputs.keys() if k.startswith(key)]
+            count = len(shapefunc_keys)
             ax = axs[idx, dist_param]  # Get the current Axes instance on the grid
 
-            if "_._" in key:
-                plot_interaction_lss(ax, preds[key], key, model.data, dist_param)
-            else:
+            if count == 2:
+                plot_interaction_lss(
+                    ax, preds[key], shapefunc_keys, model.data, dist_param
+                )
+            elif count == 1:
                 if key in model.CAT_FEATURES:
                     plot_categorical_feature(
                         ax,
                         model.data,
-                        key,
+                        shapefunc_keys[0],
                         model.target_name,
                         preds[key][:, dist_param],
                         model.plotting_data,
@@ -306,12 +317,14 @@ def plot_additive_distributional_model(
                     plot_continuous_feature(
                         ax,
                         model.data,
-                        key,
+                        shapefunc_keys[0],
                         model.target_name,
                         preds[key][:, dist_param],
                         model.plotting_data,
                         hist,
                     )
+            else:
+                pass
 
             # Adjust layout for each subplot
             ax.set_title(f"Effect of {key}")
