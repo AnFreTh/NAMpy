@@ -77,24 +77,27 @@ class NAM(AdditiveBaseModel):
         print("------------- Network architecture --------------")
         for idx, net in enumerate(self.feature_nets):
             print(
-                f"{net.name} -> {self.shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={self.shapefuncs[idx].output_dimension}"
+                f"{net.name} -> {self.shapefuncs[idx].Network}(features={[inp.name.split(':')[1] for inp in net.inputs]}, n_params={net.count_params()}) -> output dimension={self.shapefuncs[idx].output_dimension}"
             )
 
     def _initialize_shapefuncs(self, num_classes):
         self.shapefuncs = []
-        for _, key in enumerate(self.input_dict):
-            class_reference = ShapeFunctionRegistry.get_class(
-                self.input_dict[key]["Network"]
-            )
+        for key, value in self.feature_information.items():
+            class_reference = ShapeFunctionRegistry.get_class(value["Network"])
             if not class_reference:
                 raise ValueError(
-                    f"{self.input_dict[key]['Network']} not found in the registry"
+                    f"specified network {value['Network']} for {key} not found in the registry"
                 )
 
+            identifier = [val["identifier"] for val in value["inputs"]]
+            inps = [self.inputs[val] for val in identifier]
+            params = {}
+            params.update(value["shapefunc_args"])
+            params.update({"Network": value["Network"]})
             self.shapefuncs.append(
                 class_reference(
-                    inputs=self.input_dict[key]["Input"],
-                    param_dict=self.input_dict[key]["hyperparams"],
+                    inputs=inps,
+                    param_dict=params,
                     name=key,
                     identifier=key,
                     output_dimension=num_classes,
@@ -103,13 +106,16 @@ class NAM(AdditiveBaseModel):
 
     def _initialize_feature_nets(self):
         self.feature_nets = []
-        for idx, key in enumerate(self.input_dict.keys()):
-            if "<>" in key:
-                inputs = [self.inputs[k + "_."] for k in key.split("<>")]
-                name = "_._".join(key.split("<>"))
-                my_model = self.shapefuncs[idx].build(inputs, name=name)
+        for idx, value in enumerate(self.feature_information.items()):
+            key = value[0]
+            feature = value[1]
+            identifier = [val["identifier"] for val in feature["inputs"]]
+            inps = [self.inputs[val] for val in identifier]
+            if len(inps) > 1:
+                my_model = self.shapefuncs[idx].build(inps, name=key)
             else:
-                my_model = self.shapefuncs[idx].build(self.inputs[key], name=key)
+                my_model = self.shapefuncs[idx].build(inps[0], name=key)
+
             self.feature_nets.append(my_model)
 
     def _initialize_output_layer(self):
@@ -160,7 +166,7 @@ class NAM(AdditiveBaseModel):
             preds = {}
 
             for net in self.feature_nets:
-                if net.name.count("_._") == 1:
+                if len(net.inputs) == 2:
                     # Logic for nets with '_._' in their name
                     min_feature0 = np.min(self.data[net.input[0].name])
                     max_feature0 = np.max(self.data[net.input[0].name])
@@ -221,7 +227,7 @@ class NAM(AdditiveBaseModel):
         preds = self.predict(dataset)["output"].squeeze()
         visual_analysis(preds, self.data[self.target_name])
 
-    def get_significance(self, permutations=5000):
+    def pseudo_significance(self, permutations=5000):
         """
         Computes pseudo permutation significance by comparing the complete prediction
         distribution with a prediction distribution that omits a feature (variable).
