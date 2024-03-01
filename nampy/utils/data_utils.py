@@ -15,7 +15,6 @@ from tqdm import tqdm
 
 
 class Preprocessor(tf.keras.layers.Layer):
-
     """
     A custom TensorFlow Keras layer for preprocessing features in a dataset.
 
@@ -69,67 +68,77 @@ class Preprocessor(tf.keras.layers.Layer):
         self.preprocessors = {}
         self.tree_params = tree_params
 
-        for key, feature in self.feature_preprocessing_dict.items():
-            if feature["encoding"] == "normalized":
-                if feature["Network"] == "CubicSplineNet":
-                    self.preprocessors[key] = CubicExpansion(feature["n_knots"])
-                elif feature["Network"] == "PolynomialSplineNet":
-                    self.preprocessors[key] = PolynomialExpansion(feature["degree"])
+        for _, val in self.feature_preprocessing_dict.items():
+            for input in val["inputs"]:
+                key = input["identifier"]
+                preprocessing = input["preprocessing"]
+
+                if preprocessing["encoding"] == "normalized":
+                    if val["Network"] == "CubicSplineNet":
+                        self.preprocessors[key] = CubicExpansion(
+                            preprocessing["n_knots"]
+                        )
+                    elif val["Network"] == "PolynomialSplineNet":
+                        self.preprocessors[key] = PolynomialExpansion(
+                            preprocessing["degree"]
+                        )
+                    else:
+                        self.preprocessors[key] = tf.keras.layers.Normalization()
+
+                elif preprocessing["encoding"] == "min_max":
+                    self.preprocessors[key] = MinMaxEncodingLayer()
+
+                elif preprocessing["encoding"] == "hashing":
+                    self.preprocessors[key] = tf.keras.layers.Hashing(
+                        num_bins=preprocessing["n_bins"]
+                    )
+
+                elif preprocessing["encoding"] == "discretized":
+                    self.preprocessors[key] = tf.keras.layers.Discretization(
+                        num_bins=preprocessing["n_bins"]
+                    )
+
+                elif preprocessing["encoding"] == "int":
+                    if preprocessing["dtype"] == object:
+                        self.preprocessors[key] = tf.keras.layers.StringLookup(
+                            output_mode="int"
+                        )
+                    elif preprocessing["dtype"] == float:
+                        self.preprocessors[key] = IntegerBinning(
+                            n_bins=preprocessing["n_bins"],
+                            task=self.task,
+                            tree_params=self.tree_params,
+                        )
+                    elif np.issubdtype(preprocessing["dtype"], np.integer):
+                        self.preprocessors[key] = tf.keras.layers.IntegerLookup(
+                            output_mode="int"
+                        )  # NoPreprocessingLayer(type="int")
+
+                elif preprocessing["encoding"] == "one_hot":
+                    if preprocessing["dtype"] == object:
+                        self.preprocessors[key] = tf.keras.layers.StringLookup(
+                            output_mode="one_hot"
+                        )
+                    elif preprocessing["dtype"] == float:
+                        self.preprocessors[key] = OneHotBinning(
+                            n_bins=preprocessing["n_bins"],
+                            task=self.task,
+                            tree_params=self.tree_params,
+                        )
+                    elif np.issubdtype(preprocessing["dtype"], np.integer):
+                        self.preprocessors[key] = NoPreprocessingCatLayer(
+                            type="one_hot"
+                        )
+
+                elif preprocessing["encoding"] == "PLE":
+                    self.preprocessors[key] = PLE(
+                        n_bins=preprocessing["n_bins"],
+                        task=self.task,
+                        tree_params=self.tree_params,
+                    )
+
                 else:
-                    self.preprocessors[key] = tf.keras.layers.Normalization()
-
-            elif feature["encoding"] == "min_max":
-                self.preprocessors[key] = MinMaxEncodingLayer()
-
-            elif feature["encoding"] == "hashing":
-                self.preprocessors[key] = tf.keras.layers.Hashing(
-                    num_bins=feature["n_bins"]
-                )
-
-            elif feature["encoding"] == "discretized":
-                self.preprocessors[key] = tf.keras.layers.Discretization(
-                    num_bins=feature["n_bins"]
-                )
-
-            elif feature["encoding"] == "int":
-                if feature["dtype"] == object:
-                    self.preprocessors[key] = tf.keras.layers.StringLookup(
-                        output_mode="int"
-                    )
-                elif feature["dtype"] == float:
-                    self.preprocessors[key] = IntegerBinning(
-                        n_bins=feature["n_bins"],
-                        task=self.task,
-                        tree_params=self.tree_params,
-                    )
-                elif np.issubdtype(feature["dtype"], np.integer):
-                    self.preprocessors[key] = tf.keras.layers.IntegerLookup(
-                        output_mode="int"
-                    )  # NoPreprocessingLayer(type="int")
-
-            elif feature["encoding"] == "one_hot":
-                if feature["dtype"] == object:
-                    self.preprocessors[key] = tf.keras.layers.StringLookup(
-                        output_mode="one_hot"
-                    )
-                elif feature["dtype"] == float:
-                    self.preprocessors[key] = OneHotBinning(
-                        n_bins=feature["n_bins"],
-                        task=self.task,
-                        tree_params=self.tree_params,
-                    )
-                elif np.issubdtype(feature["dtype"], np.integer):
-                    self.preprocessors[key] = NoPreprocessingCatLayer(type="one_hot")
-
-            elif feature["encoding"] == "PLE":
-                self.preprocessors[key] = PLE(
-                    n_bins=feature["n_bins"],
-                    task=self.task,
-                    tree_params=self.tree_params,
-                )
-
-            else:
-                self.preprocessors[key] = NoPreprocessingLayer()
+                    self.preprocessors[key] = NoPreprocessingLayer()
 
     def call(self, data, target):
         """
@@ -234,8 +243,10 @@ class DataModule:
         """
 
         # Common data types including subtypes
+        self.data = data
+
         common_datatypes = (int, float, str, bool, list, dict, tuple, object)
-        for column, dtype in data.dtypes.items():
+        for column, dtype in self.data.dtypes.items():
             if column == target_name:
                 continue
             # Extract the main data type without the subtype
@@ -253,9 +264,8 @@ class DataModule:
                     f"Column '{column}' has an unsupported datatype: {dtype}"
                 )
 
-        self.data = data.copy()
-        if target_name:
-            self.labels = self.data.pop(target_name)
+        # if target_name:
+        #    self.labels = self.data.pop(target_name)
 
         # check for valid encoding
         supported_encodings = [
@@ -268,17 +278,17 @@ class DataModule:
             "hashing",
             "discretized",
         ]
-        for key in feature_dictionary.keys():
-            if key == target_name:
-                continue
-            if feature_dictionary[key]["encoding"] not in supported_encodings:
-                raise AssertionError(
-                    f"encoding {feature_dictionary[key]['encoding']} for variable {key} is not supported"
-                )
+
+        for key, value in feature_dictionary.items():
+            for input in value["inputs"]:
+                if input["preprocessing"]["encoding"] not in supported_encodings:
+                    raise ValueError(
+                        f"{input['feature_name']} has unsupported encoding {input['preprocessing']['encoding']}. Encoding must be in {supported_encodings}"
+                    )
 
         self.input_dict = input_dict
         self.task = task
-        self.data = data
+        self.labels = self.data[target_name]
         self.target_name = target_name
         self.feature_dictionary = feature_dictionary
         self.tree_params = tree_params
@@ -400,20 +410,19 @@ class DataModule:
             self.test_dataset = None
 
 
-def generate_plotting_data(df, num_samples, new_data={}):
+def generate_plotting_data(df, num_samples):
     """
     Generates data for plotting purposes.
 
     Args:
         df (pd.DataFrame): Original data as a Pandas DataFrame.
         num_samples (int): Number of samples to generate.
-        new_data (dict, optional): Additional data to include (default is {}).
 
     Returns:
         pd.DataFrame: A Pandas DataFrame containing generated data.
 
     """
-
+    new_data = {}
     for column in df.columns:
         if pd.api.types.is_numeric_dtype(df[column]):
             if pd.api.types.is_integer_dtype(df[column].dtype):
