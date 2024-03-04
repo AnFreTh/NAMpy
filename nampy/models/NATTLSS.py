@@ -148,7 +148,7 @@ class NATTLSS(AdditiveBaseModel):
         )
         for idx, net in enumerate(self.feature_nets):
             print(
-                f"{net.name} -> {self.shapefuncs[idx].Network}(feature={net.name}, n_params={net.count_params()}) -> output dimension={self.shapefuncs[idx].output_dimension}"
+                f"{net.name} -> {self.shapefuncs[idx].Network}(features={[inp.name.split(':')[1] for inp in net.inputs]}, n_params={net.count_params()}) -> output dimension={self.shapefuncs[idx].output_dimension}"
             )
 
     def _initialize_family(self):
@@ -182,9 +182,11 @@ class NATTLSS(AdditiveBaseModel):
 
     def _initialize_transformer(self):
         self.TRANSFORMER_FEATURES = []
-        for key, feature in self.input_dict.items():
+        for key, feature in self.feature_information.items():
             if feature["Network"] == "Transformer":
-                self.TRANSFORMER_FEATURES += [input.name for input in feature["Input"]]
+                self.TRANSFORMER_FEATURES += [
+                    val["identifier"] for val in feature["inputs"]
+                ]
 
         # Initialise encoder
         if self.encoder:
@@ -221,43 +223,43 @@ class NATTLSS(AdditiveBaseModel):
 
     def _initialize_shapefuncs(self):
         self.shapefuncs = []
-        for _, key in enumerate(self.input_dict):
-            if self.input_dict[key]["Network"] != "Transformer":
-                class_reference = ShapeFunctionRegistry.get_class(
-                    self.input_dict[key]["Network"]
-                )
-                if class_reference:
-                    self.shapefuncs.append(
-                        class_reference(
-                            inputs=self.input_dict[key]["Input"],
-                            param_dict=self.input_dict[key]["hyperparams"],
-                            name=key,
-                            identifier=key,
-                            output_dimension=self.family.param_count,
-                        )
-                    )
-                else:
+        for key, value in self.feature_information.items():
+            if value["Network"] != "Transformer":
+                class_reference = ShapeFunctionRegistry.get_class(value["Network"])
+                if not class_reference:
                     raise ValueError(
-                        f"{self.input_dict[key]['Network']} not found in the registry"
+                        f"specified network {value['Network']} for {key} not found in the registry"
                     )
+
+                identifier = [val["identifier"] for val in value["inputs"]]
+                inps = [self.inputs[val] for val in identifier]
+                params = {}
+                params.update(value["shapefunc_args"])
+                params.update({"Network": value["Network"]})
+                self.shapefuncs.append(
+                    class_reference(
+                        inputs=inps,
+                        param_dict=params,
+                        name=key,
+                        identifier=key,
+                        output_dimension=self.family.param_count,
+                    )
+                )
 
     def _initialize_feature_nets(self):
         self.feature_nets = []
-        offset = 0
-        for idx, key in enumerate(self.input_dict.keys()):
-            if self.input_dict[key]["Network"] != "Transformer":
-                idx = idx - offset
-                if "<>" in key:
-                    keys = key.split("<>")
-                    inputs = [self.inputs[k + "_."] for k in key.split("<>")]
-                    name = "_._".join(keys)
-                    my_model = self.shapefuncs[idx].build(inputs, name=name)
+        for idx, value in enumerate(self.feature_information.items()):
+            key = value[0]
+            feature = value[1]
+            if feature["Network"] != "Transformer":
+                identifier = [val["identifier"] for val in feature["inputs"]]
+                inps = [self.inputs[val] for val in identifier]
+                if len(inps) > 1:
+                    my_model = self.shapefuncs[idx].build(inps, name=key)
                 else:
-                    my_model = self.shapefuncs[idx].build(self.inputs[key], name=key)
+                    my_model = self.shapefuncs[idx].build(inps[0], name=key)
 
                 self.feature_nets.append(my_model)
-            else:
-                offset += 1
 
     def _initialize_output_layer(self):
         self.FeatureDropoutLayer = tf.keras.layers.Dropout(self.feature_dropout)
