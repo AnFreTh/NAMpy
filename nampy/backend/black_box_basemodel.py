@@ -158,7 +158,6 @@ class BaseModel(tf.keras.Model):
         output_mode = []
         self.feature_information = {}
         for name in self.feature_names:
-            print(name)
             self.feature_information[name] = {}
             self.feature_information[name]["inputs"] = [
                 {

@@ -280,7 +280,7 @@ class FormulaHandler:
                             input["preprocessing"]["encoding"] = "one_hot"
                     elif input["preprocessing"]["dtype"] == float:
                         input["preprocessing"]["encoding"] = "normalized"
-                    elif np.issubdtype(input["dtype"], np.integer):
+                    elif np.issubdtype(input["preprocessing"]["dtype"], np.integer):
                         if value["Network"] == "Transformer":
                             input["preprocessing"]["encoding"] = "int"
                         else:

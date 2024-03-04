@@ -222,13 +222,14 @@ def plot_additive_model(
 
     for idx, (key, value) in enumerate(preds.items()):
         shapefunc_keys = [k for k in model.inputs.keys() if k.startswith(key)]
+
         count = len(shapefunc_keys)
         ax = axs[idx]  # Get the current Axes instance on the grid
 
         if count == 2:
             plot_interaction(ax, value, shapefunc_keys, model.data)
         elif count == 1:
-            if key in model.CAT_FEATURES:
+            if shapefunc_keys[0] in model.CAT_FEATURES:
                 plot_categorical_feature(
                     ax,
                     model.data,
