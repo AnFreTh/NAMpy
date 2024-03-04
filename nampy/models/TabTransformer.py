@@ -30,7 +30,6 @@ class TabTransformer(BaseModel):
         hidden_units=[128, 128, 64],
         encoder=None,
         output_activation=tf.math.sigmoid,
-        num_classes=1,
         binning_task="regression",
     ):
         """
@@ -75,12 +74,14 @@ class TabTransformer(BaseModel):
             feature_names (list): List of feature names.
         """
 
+        task = "classification" if classification else "regression"
         super(TabTransformer, self).__init__(
             data=data,
             y=y,
             activation=activation,
             dropout=dropout,
             binning_task=binning_task,
+            task=task,
         )
 
         self.val_data = val_data
@@ -98,7 +99,6 @@ class TabTransformer(BaseModel):
         self.attn_dropout = attn_dropout
         self.ff_dropout = ff_dropout
         self.mlp_hidden_factors = mlp_hidden_factors
-        num_classes = num_classes
         self.model_built = False
 
     def build(self, input_shape):
@@ -108,11 +108,9 @@ class TabTransformer(BaseModel):
         if self.model_built:
             return
 
-        num_classes = self.y.shape[1] if self.classification else 1
-
         self._initialize_transformer()
         self._initialize_transformer_mlp()
-        self._initialize_output_layer(num_classes)
+        self._initialize_output_layer(self.n_classes)
 
         self.model_built = True
 

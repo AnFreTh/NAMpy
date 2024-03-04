@@ -8,7 +8,7 @@ import numpy as np
 from nampy.backend.interpretable_basemodel import AdditiveBaseModel
 from nampy.backend.families import *
 from nampy.visuals.plot_predictions import (
-    plot_additive_distributional_model,
+    plot_multi_output,
 )
 from nampy.visuals.plot_distributional_interactive import (
     visualize_distributional_regression_predictions,
@@ -304,7 +304,7 @@ class NAMLSS(AdditiveBaseModel):
             else:
                 self._plot_single_effects(port=port)
         else:
-            plot_additive_distributional_model(self)
+            plot_multi_output(self)
 
     def _plot_single_effects(self, port=8505):
         visualize_distributional_regression_predictions(self, port=port)

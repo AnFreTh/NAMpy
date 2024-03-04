@@ -15,6 +15,9 @@ from nampy.visuals.plot_interactive import (
     visualize_regression_predictions,
     visualize_additive_model,
 )
+from nampy.visuals.plot_predictions import (
+    plot_multi_output,
+)
 from nampy.visuals.analytics_plot import visual_analysis
 
 # Filter out the specific warning by category
@@ -45,6 +48,7 @@ class NAM(AdditiveBaseModel):
         Initialize the NAM model.
         ...
         """
+        task = "classification" if classification else "regression"
         super(NAM, self).__init__(
             formula=formula,
             data=data,
@@ -53,6 +57,7 @@ class NAM(AdditiveBaseModel):
             val_split=val_split,
             batch_size=batch_size,
             binning_task=binning_task,
+            task=task,
         )
 
         self.classification = classification
@@ -66,9 +71,7 @@ class NAM(AdditiveBaseModel):
         if self.model_built:
             return
 
-        num_classes = self.y.shape[1] if self.classification else 1
-
-        self._initialize_shapefuncs(num_classes)
+        self._initialize_shapefuncs(self.n_classes)
         self._initialize_feature_nets()
         self._initialize_output_layer()
 
@@ -227,7 +230,10 @@ class NAM(AdditiveBaseModel):
             else:
                 self._plot_single_effects(port=port)
         else:
-            plot_additive_model(self, hist=hist)
+            if self.n_classes > 1:
+                plot_multi_output(self, hist=hist, n_classes=self.n_classes)
+            else:
+                plot_additive_model(self, hist=hist)
 
     def _plot_single_effects(self, port=8050):
         visualize_regression_predictions(self, port=port)

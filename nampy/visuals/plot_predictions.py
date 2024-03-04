@@ -259,8 +259,9 @@ def plot_additive_model(
     plt.show()
 
 
-def plot_additive_distributional_model(
+def plot_multi_output(
     model,
+    n_classes: int = 2,
     hist: bool = False,
 ):
     """
@@ -275,9 +276,8 @@ def plot_additive_distributional_model(
         model, AdditiveBaseModel
     ), "Model does not have an 'encoder' attribute"
 
-    assert hasattr(
-        model, "family"
-    ), "The passed model has to have a distributional family attribute"
+    if hasattr(model, "family"):
+        n_classes = model.family.param_count
 
     # Assert that the model has the '_get_training_preds' method implemented
     assert callable(
@@ -287,12 +287,12 @@ def plot_additive_distributional_model(
 
     preds = model._get_plotting_preds()
     nrows = len(preds)
-    ncols = model.family.param_count
+    ncols = n_classes
 
     # Generate subplots
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10, 12))
 
-    for dist_param in range(model.family.param_count):
+    for dist_param in range(n_classes):
         for idx, (key, value) in enumerate(preds.items()):
             shapefunc_keys = [k for k in model.inputs.keys() if k.startswith(key)]
             count = len(shapefunc_keys)

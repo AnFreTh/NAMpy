@@ -3,6 +3,7 @@ from nampy.formulas.formulas import FormulaHandler
 from keras.callbacks import *
 import pandas as pd
 import tensorflow as tf
+import numpy as np
 
 
 class AdditiveBaseModel(tf.keras.Model):
@@ -25,6 +26,7 @@ class AdditiveBaseModel(tf.keras.Model):
         test_split=None,
         shuffle=True,
         binning_task="regression",
+        task="regression",
         n_bins_num=None,
         **kwargs,
     ):
@@ -64,28 +66,42 @@ class AdditiveBaseModel(tf.keras.Model):
 
         super(AdditiveBaseModel, self).__init__(**kwargs)
 
-        self._validate_task(binning_task)
+        self._validate_task(binning_task, False)
+
         self._initialize_attributes(
-            formula, data, feature_dropout, val_data, binning_task, n_bins_num
+            formula, data, feature_dropout, val_data, binning_task, n_bins_num, task
         )
+
         self._create_input_dictionary()
+        self.n_classes = self._validate_task(task, True)
         self._extract_data_types()
         self._build_datasets(batch_size, val_split, test_split, shuffle)
         self._create_model_inputs()
 
-    def _validate_task(self, task):
+    def _validate_task(self, task, classes):
         if task not in ["regression", "classification"]:
             raise ValueError("Task must be 'regression' or 'classification'")
+        if classes:
+            if task == "classification":
+                unique_labels = np.unique(self.data[self.target_name])
+                # Set num_classes to 1 for binary classification or non-classification tasks
+                if len(unique_labels) == 2 or not self.task == "classification":
+                    return 1
+                else:
+                    return len(unique_labels)
+            else:
+                return 1
 
     def _initialize_attributes(
-        self, formula, data, feature_dropout, val_data, task, n_bins
+        self, formula, data, feature_dropout, val_data, binning_task, n_bins, task
     ):
         self.formula = formula
         self.val_data = val_data
         self.data = data
         self.feature_dropout = feature_dropout
-        self.binning_task = task
+        self.binning_task = binning_task
         self.n_bins = n_bins
+        self.task = task
 
     def _create_input_dictionary(self):
         FH = FormulaHandler()
@@ -101,6 +117,7 @@ class AdditiveBaseModel(tf.keras.Model):
         helper_idx = self.feature_names + [self.target_name]
         self.data = self.data[helper_idx]
         self.data.columns = network_identifier
+        self.y = self.data[self.target_name]
 
     def _extract_data_types(self):
         self.NUM_FEATURES = []
@@ -131,6 +148,7 @@ class AdditiveBaseModel(tf.keras.Model):
             input_dict={},
             feature_dictionary=self.feature_information,
             target_name=self.target_name,
+            task=self.task,
         )
         self.datamodule.preprocess(
             validation_split=val_split,
@@ -201,6 +219,7 @@ class AdditiveBaseModel(tf.keras.Model):
             input_dict={},
             feature_dictionary=self.feature_information,
             target_name=self.target_name,
+            task=self.task,
         )
         datamodule.preprocess(
             validation_split=None,

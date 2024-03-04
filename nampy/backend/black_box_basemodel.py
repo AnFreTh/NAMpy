@@ -17,6 +17,7 @@ class BaseModel(tf.keras.Model):
         val_split=0.2,
         test_split=None,
         shuffle=True,
+        task="regression",
         binning_task="regression",
         num_encoding="normalized",
         n_bins=None,
@@ -24,49 +25,60 @@ class BaseModel(tf.keras.Model):
     ):
         super(BaseModel, self).__init__(**kwargs)
 
-        self._validate_task(binning_task)
+        self._validate_task(binning_task, False)
         self._initialize_attributes(
             data,
             val_data,
             binning_task,
             n_bins,
-            binning_task,
             activation,
             dropout,
             y,
             num_encoding,
+            task,
         )
 
         self._extract_data_types()
         self._create_input_dictionary()
+        self.n_classes = self._validate_task(task, True)
         self._build_datasets(batch_size, val_split, test_split, shuffle)
         self._create_model_inputs()
 
-    def _validate_task(self, task):
+    def _validate_task(self, task, classes):
         if task not in ["regression", "classification"]:
             raise ValueError("Task must be 'regression' or 'classification'")
+        if classes:
+            if task == "classification":
+                unique_labels = np.unique(self.data[self.target_name])
+                # Set num_classes to 1 for binary classification or non-classification tasks
+                if len(unique_labels) == 2 or not self.task == "classification":
+                    return 1
+                else:
+                    return len(unique_labels)
+            else:
+                return 1
 
     def _initialize_attributes(
         self,
         data,
         val_data,
-        task,
-        n_bins,
         binning_task,
+        n_bins,
         activation,
         dropout,
         y,
         num_encoding,
+        task,
     ):
         self.val_data = val_data
         self.data = data.copy()
-        self.binning_task = task
         self.n_bins = n_bins
         self.activation = activation
         self.dropout = dropout
         self.target_name = y
         self.binning_task = binning_task
         self.num_encoding = num_encoding
+        self.task = task
 
     def _extract_data_types(self):
         self.NUM_FEATURES = []
@@ -105,6 +117,7 @@ class BaseModel(tf.keras.Model):
             input_dict={},
             feature_dictionary=self.feature_information,
             target_name=self.target_name,
+            task=self.task,
         )
         self.datamodule.preprocess(
             validation_split=val_split,
@@ -131,26 +144,46 @@ class BaseModel(tf.keras.Model):
         self.input_dict = {}
         for idx, name in enumerate(self.feature_names):
             self.input_dict[name] = {
-                "data_type": self.data[name].dtype,
                 "Network": None,
+                "inputs": [
+                    {
+                        "feature_name": name,
+                        "preprocessing": {"data_type": self.data[name].dtype},
+                        "shapefunc_args": {},
+                    }
+                ],
             }
 
         # get encoding types
         output_mode = []
         self.feature_information = {}
         for name in self.feature_names:
-            self.feature_information[name] = {"dtype": self.data[name].dtype}
+            print(name)
+            self.feature_information[name] = {}
+            self.feature_information[name]["inputs"] = [
+                {
+                    "identifier": name,
+                    "preprocessing": {"dtype": self.data[name].dtype},
+                }
+            ]
             self.feature_information[name]["Network"] = None
+            self.feature_information[name]["shapefunc_args"] = {}
             if (
                 np.issubdtype(self.data[name].dtype, np.integer)
                 or self.data[name].dtype == "object"
             ):
                 output_mode.append(["int"])
-                self.feature_information[name]["encoding"] = "int"
+                self.feature_information[name]["inputs"][0]["preprocessing"][
+                    "encoding"
+                ] = "int"
             else:
                 output_mode.append([self.num_encoding])
-                self.feature_information[name]["encoding"] = self.num_encoding
-                self.feature_information[name]["n_bins"] = self.n_bins
+                self.feature_information[name]["inputs"][0]["preprocessing"][
+                    "encoding"
+                ] = self.num_encoding
+                self.feature_information[name]["inputs"][0]["preprocessing"][
+                    "n_bins"
+                ] = self.n_bins
 
     def _create_model_inputs(self):
         """
@@ -200,6 +233,7 @@ class BaseModel(tf.keras.Model):
             input_dict={},
             feature_dictionary=self.feature_information,
             target_name=self.target_name,
+            task=self.task,
         )
         datamodule.preprocess(
             validation_split=None,

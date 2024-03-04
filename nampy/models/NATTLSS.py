@@ -8,7 +8,7 @@ from nampy.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
 from nampy.shapefuncs.registry import ShapeFunctionRegistry
 from nampy.backend.families import *
 import warnings
-from nampy.visuals.plot_predictions import plot_additive_distributional_model
+from nampy.visuals.plot_predictions import plot_multi_output
 from nampy.visuals.plot_importances import (
     visualize_importances,
     visualize_categorical_importances,
@@ -417,7 +417,7 @@ class NATTLSS(AdditiveBaseModel):
             return preds
 
     def plot(self):
-        plot_additive_distributional_model(self)
+        plot_multi_output(self)
 
     def plot_dist(self):
         preds = self.predict(self.training_dataset)["summed_output"]
