@@ -135,6 +135,14 @@ def visualize_heatmap_importances(model, cat1, cat2):
         }
     )
     result_dict = {}
+
+    for key, value in model.feature_information.items():
+        for val in value["inputs"]:
+            if val["feature_name"] == cat1:
+                cat1 = val["identifier"]
+            if val["feature_name"] == cat2:
+                cat2 = val["identifier"]
+
     unique_vals = model.data[cat1].unique()
     for val1 in unique_vals:
         temp_dict = {}
