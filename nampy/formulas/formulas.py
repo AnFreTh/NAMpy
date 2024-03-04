@@ -190,8 +190,8 @@ class FormulaHandler:
         # Extract network name, feature name, and options
         network_name, rest = feature_str.split("(", 1)
         feature_name, options_str = (
-            rest.split(")", 1)[0].split(",", 1)
-            if "," in rest
+            rest.split(")", 1)[0].split(";", 1)
+            if ";" in rest
             else (rest.split(")", 1)[0], None)
         )
 
