@@ -245,15 +245,11 @@ nampy offers multiple methods for visualization and interpretability, allowing y
 
    .. code-block:: python
 
-      model.plot()
+      model.plot(interactive=False)
 
-   Further, nampy offers plotly plots with increased usability.
+   Further, nampy offers plotly plots with increased usability. 
+   All feature effects can be plotted via plotly/dash and selected via dropdown or zoomed in on, by setting model.plot(interactive=True).
 
-   .. code-block:: python
-
-      model.plot_all_effects(port=8053)
-
-   Here, all feature effects, including interaction terms are plotted and accessible via dropdown.
 
 3. **Distributional Parameters (NAMLSS Model):**
 
@@ -274,10 +270,12 @@ Pseudo Significance
 **************************
 For the additive models, nampy computes a pseudo-feature significance where possible, by simply comparing the predictive distribution
 with the predictive distribution when omitting each feature on a permutation test basis.
+Note, that this feature is so far only supported for the NAM model class and a regression task (minimization of MSE).
+Also note, that this feature is computationally expensive and not comparable to a real statistical significance test.
 
 .. code-block:: python
 
-    significances = model.get_significance()
+    significances = model.pseudo_significance()
     print(significances)
 
 
