@@ -100,6 +100,7 @@ class NATT(AdditiveBaseModel):
             ValueError: If the formula is not a string.
         """
 
+        task = "classification" if classification else "regression"
         super(NATT, self).__init__(
             formula=formula,
             data=data,
@@ -108,6 +109,7 @@ class NATT(AdditiveBaseModel):
             val_split=val_split,
             batch_size=batch_size,
             binning_task=binning_task,
+            task=task,
         )
 
         # Initialization of parameters
@@ -131,17 +133,15 @@ class NATT(AdditiveBaseModel):
         if self.model_built:
             return
 
-        num_classes = self.y.shape[1] if self.classification else 1
-
         self._initialize_transformer()
-        self._initialize_transformer_mlp(num_classes)
-        self._initialize_shapefuncs(num_classes)
+        self._initialize_transformer_mlp(self.n_classes)
+        self._initialize_shapefuncs(self.n_classes)
         self._initialize_feature_nets()
         self._initialize_output_layer()
 
         self.model_built = True
 
-        self.print_network_architecture(num_classes)
+        self.print_network_architecture(self.n_classes)
 
     def print_network_architecture(self, num_classes):
         print("------------- Network architecture --------------")

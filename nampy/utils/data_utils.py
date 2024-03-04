@@ -12,6 +12,7 @@ from .preprocessing_utils._minmax import MinMaxEncodingLayer
 from .preprocessing_utils._helper import NoPreprocessingCatLayer, NoPreprocessingLayer
 import numbers
 from tqdm import tqdm
+from tensorflow.keras.utils import to_categorical
 
 
 class Preprocessor(tf.keras.layers.Layer):
@@ -289,6 +290,18 @@ class DataModule:
         self.input_dict = input_dict
         self.task = task
         self.labels = self.data[target_name]
+        if self.task == "classification":
+            unique_labels = np.unique(self.labels)
+
+            if len(unique_labels) == 2:
+                # Binary classification; ensure labels are 0 and 1
+                self.labels = np.where(self.labels == unique_labels[0], 0, 1)
+            elif len(unique_labels) > 2:
+                # Multiclass classification; one-hot encode
+                # First, ensure labels are integers starting from 0
+                label_mapping = {label: idx for idx, label in enumerate(unique_labels)}
+                mapped_labels = np.vectorize(label_mapping.get)(self.labels)
+                self.labels = to_categorical(mapped_labels)
         self.target_name = target_name
         self.feature_dictionary = feature_dictionary
         self.tree_params = tree_params

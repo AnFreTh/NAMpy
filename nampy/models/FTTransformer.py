@@ -84,6 +84,8 @@ class FTTransformer(BaseModel):
             feature_names (list): List of feature names.
         """
 
+        task = "classification" if classification else "regression"
+
         super(FTTransformer, self).__init__(
             data=data,
             y=y,
@@ -93,6 +95,7 @@ class FTTransformer(BaseModel):
             batch_size=batch_size,
             num_encoding=num_encoding,
             n_bins=n_bins,
+            task=task,
         )
 
         self.val_data = val_data
@@ -134,11 +137,9 @@ class FTTransformer(BaseModel):
 
         num_categories += numeric_categories
 
-        num_classes = self.y.shape[1] if self.classification else 1
-
         self._initialize_transformer(num_categories)
         self._initialize_transformer_mlp()
-        self._initialize_output_layer(num_classes)
+        self._initialize_output_layer(self.n_classes)
 
         self.model_built = True
 
