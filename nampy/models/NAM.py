@@ -26,10 +26,35 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 class NAM(AdditiveBaseModel):
     """
-    Neural Additive Model (NAM) Class for fitting a Neural Additive Model.
+    Neural Additive Model (NAM) for interpretable machine learning, extending the AdditiveBaseModel
+    class. It leverages the flexibility of neural networks for feature representation while maintaining
+    the interpretability of additive models. This class facilitates building, training, and visualizing
+    NAMs, which are particularly useful for regression and classification tasks.
 
-    Inherits from AdditiveBaseModel and includes methods for building and training
-    the model, along with methods for prediction and visualization.
+    Attributes:
+        formula (str): The formula specifying the model structure.
+        data (pd.DataFrame): The dataset to be used for the model.
+        feature_dropout (float): Dropout rate for feature regularization, used to prevent overfitting. Default is 0.001.
+        val_split (float): Proportion of data to be used for validation, to monitor and prevent overfitting. Default is 0.2.
+        batch_size (int): Batch size for training, impacting the speed and memory usage during model training. Default is 1024.
+        val_data (pd.DataFrame or None): Optional separate validation dataset. If provided, it is used instead of splitting `data` based on `val_split`. Default is None.
+        output_activation (str): Activation function for the output layer, determining the form of the model output. Default is "linear".
+        classification (bool): Indicates whether the model is for classification (True) or regression (False). Default is False.
+        binning_task (str): Specifies the task type for binning features, which can influence the model's interpretability and performance. Default is "regression".
+        model_built (bool): Flag to check if the model has been built. This is used internally to prevent redundant model building.
+
+    Methods:
+        build: Constructs the neural network architecture for the NAM.
+        call: Defines the forward pass for the NAM.
+        _initialize_shapefuncs: Initializes shape functions for each feature based on the registry.
+        _initialize_feature_nets: Sets up the neural networks for representing the features.
+        _initialize_output_layer: Configures the output layer of the model.
+        _get_plotting_preds: Prepares predictions for visualization purposes.
+        plot: Visualizes the model's predictions and feature effects.
+        _plot_single_effects: Generates plots for individual feature effects.
+        _plot_all_effects: Produces plots for all possible feature effects and interactions.
+        plot_analysis: Conducts and visualizes a statistical analysis of the model's predictions.
+        pseudo_significance: Performs a pseudo permutation significance test to evaluate the importance of features.
     """
 
     def __init__(
@@ -45,9 +70,20 @@ class NAM(AdditiveBaseModel):
         binning_task="regression",
     ):
         """
-        Initialize the NAM model.
-        ...
+        Initializes the NAM model with the specified configuration.
+
+        Parameters:
+            formula (str): The formula specifying the model structure.
+            data (pd.DataFrame): The dataset to be used for the model.
+            feature_dropout (float, optional): Dropout rate for feature regularization. Default is 0.001.
+            val_split (float, optional): Proportion of data to be used for validation. Default is 0.2.
+            batch_size (int, optional): Batch size for training. Default is 1024.
+            val_data (pd.DataFrame or None, optional): Optional separate validation dataset. Default is None.
+            output_activation (str, optional): Activation function for the output layer. Default is "linear".
+            classification (bool, optional): Specifies if the model is for a classification task. Default is False.
+            binning_task (str, optional): Specifies the task type for binning features. Default is "regression".
         """
+
         task = "classification" if classification else "regression"
         super(NAM, self).__init__(
             formula=formula,

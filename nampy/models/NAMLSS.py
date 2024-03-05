@@ -36,43 +36,69 @@ class NAMLSS(AdditiveBaseModel):
         **distribution_params,
     ):
         """
-        Initialize the NAMLSS model.
+         Initializes the NAMLSS model, a specialized form of an additive model tailored for
+         distributional regression. This model constructs a non-linear additive model based on the
+         specified formula, using various distribution families to model the data's distribution.
 
-        Args:
-            formula (str): Formula similar to mgc.
-            data (pd.DataFrame): DataFrame that should contain X and y with named columns.
-            family (str): Probability distribution family for the response variable. Must be one of ['Normal', 'Logistic', 'InverseGamma', 'Poisson', 'JohnsonSU', 'Gamma'].
-            activation (str, optional): Activation function used in hidden layers (default is "relu").
-            dropout (float, optional): Dropout coefficient (default is 0.01).
-            feature_dropout (float, optional): Feature dropout rate (default is 0.01).
+         The NAMLSS model can account for complex relationships in data by allowing feature
+         interactions and using distributional assumptions to predict a range of outcomes rather than
+         a single point estimate.
 
-        Attributes:
-            formula (str): The formula for feature transformations.
-            data: The input data.
-            family: The distribution family for the target variable.
-            dropout (float): The dropout rate for model layers.
-            feature_dropout (float): The feature dropout rate.
-            val_data: Validation data to use.
-            val_split (float): The validation data split ratio.
-            activation (str): The activation function for model layers.
-            feature_nets (list): List of all the feature nets for the numerical features
-            output_layer (tf.keras.Layer). Convenience Layer that returns the input
-            training_dataset (tf.data.Dataset): training dataset containing the transformed inputs
-            validation_dataset (tf.data.Dataset): validation dataset containing the transformed inputs
-            plotting_dataset (tf.data.Dataset): dataset containing the transformed inputs adapted for creating the plots
-            inputs (dict): dictionary with all tf.keras.Inputs -> mapping from feature name to feature
-            input_dict (dict): dictionary containg all the model specification -> mapping from feature to network type, network size, name, input
-            NUM_FEATURES (list): Convenience list with all numerical features
-            CAT_FEATURES (list): Convenience list with all categorical features
+         Args:
+             formula (str): A symbolic representation of the model to be fit. The formula specifies the variables
+                            used in the model and their interactions.
+             data (pd.DataFrame): The dataset containing all necessary variables for the model, including the target.
+             family (str): The name of the distributional family to use for modeling the target variable. This determines
+                           the shape of the distribution assumed for the response variable. Supported families include
+                           distributions like Normal, Poisson, Gamma, etc.
+             feature_dropout (float, optional): The rate at which features are randomly dropped out after the last
+                                                additive layer, as a regularization method. Default is 0.01.
+             val_split (float, optional): The proportion of the data to be used for validation during model training,
+                                          used for early stopping and model selection. Default is 0.2.
+             val_data (pd.DataFrame, optional): An optional separate dataset to be used for validation. If provided,
+                                                this dataset is used instead of splitting the `data` argument. Default is None.
+             batch_size (int, optional): The size of the mini-batches used during training. Default is 1024.
+             binning_task (str, optional): The task used to guide the binning of numerical features before model fitting,
+                                           typically "regression" or "classification". Default is "regression".
+             loss (str, optional): The loss function to be minimized during training. Options include "nll" for negative
+                                   log-likelihood or "kld" for Kullback-Leibler Divergence. Default is "nll".
+             **distribution_params: Additional parameters specific to the chosen distributional family. These parameters
+                                    are passed directly to the constructor of the distribution class.
 
-            named_feature_nets (list): List of named feature networks.
-            y (str): Name of the target variable.
-            feature_names (list): List of feature names.
-            fit_intercept (bool): Whether to fit an intercept.
-            hidden_layer_sizes (list): List of hidden layer sizes.
+         Attributes:
+             model_built (bool): Indicates whether the model architecture has been constructed.
+             feature_information (dict): A dictionary containing information about the features used in the model, including preprocessing, datatype, and network type.
+             family (str or Distribution): The distributional family used for modeling the response variable.
+             loss_func (str): The loss function used during model training. 'nll' or 'kld'
+             distributional_params (dict): A dictionary of parameters specific to the chosen distributional family. These parameters are passed
+             shapefuncs (list): A collection of shape function instances corresponding to each
+                                feature specified in the model formula. These functions are
+                                responsible for transforming the input features into a space where
+                                they linearly contribute to the response variable, allowing for
+                                non-linear relationships in the original feature space.
+             feature_nets (list): A list of neural network models, each corresponding to a shape
+                                  function in `shapefuncs`. These networks learn the transformations
+                                  defined by their respective shape functions during model training.
+             FeatureDropoutLayer (tf.keras.layers.Dropout): A dropout layer applied to the output of feature networks to regularize the model and prevent overfitting.
+             intercept_layer (InterceptLayer, optional): An optional layer that adds an intercept term to the model's prediction.
 
         Raises:
-            ValueError: If the formula is not a string or if the family is not one of the supported distributions.
+             ValueError: If an unsupported distributional family is specified, a ValueError is raised, indicating that
+                         the `family` argument does not correspond to any of the supported distributional families.
+
+         Example Usage:
+             namlss_model = NAMLSS(
+                 formula='y ~ x1 + x2',
+                 data=df,
+                 family='Normal',
+                 feature_dropout=0.05,
+                 val_split=0.25,
+                 batch_size=512,
+                 binning_task='regression',
+                 loss='nll'
+             )
+             namlss_model.compile(...)
+             namlss_model.fit(...)
         """
 
         super(NAMLSS, self).__init__(
@@ -194,7 +220,7 @@ class NAMLSS(AdditiveBaseModel):
             _type_: negative Log likelihood of respective input distribution
         """
         # return self.family.negative_log_likelihood(y_true, y_hat)
-        if self.loss_func:
+        if self.loss_func == "nll":
             return -y_hat.log_prob(tf.cast(y_true, dtype=tf.float32))
         elif self.loss_func == "kld":
             return self.family.KL_divergence(y_true, y_hat)
