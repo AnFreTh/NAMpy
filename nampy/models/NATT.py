@@ -4,7 +4,6 @@ import numpy as np
 from nampy.backend.interpretable_basemodel import AdditiveBaseModel
 from nampy.shapefuncs.transformer_encoder import TransformerEncoder
 from nampy.shapefuncs.helper_nets.layers import InterceptLayer, IdentityLayer
-from nampy.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
 from nampy.shapefuncs.registry import ShapeFunctionRegistry
 from nampy.visuals.plot_predictions import plot_additive_model
 from nampy.visuals.plot_interactive import (
@@ -38,12 +37,14 @@ class NATT(AdditiveBaseModel):
         attn_dropout: float = 0.1,
         ff_dropout: float = 0.1,
         use_column_embedding: bool = False,
-        mlp_hidden_factors: list = [2, 4],
         encoder=None,
         explainable=True,
         output_activation="linear",
         binning_task="regression",
         batch_size=1024,
+        transformer_mlp_sizes=[64, 32],
+        transformer_mlp_dropout=0.1,
+        transformer_mlp_activation="relu",
     ):
         """
         Initialize the NATT model.
@@ -62,7 +63,6 @@ class NATT(AdditiveBaseModel):
             attn_dropout (float): Attention dropout rate (default is 0.1).
             ff_dropout (float): Feedforward dropout rate (default is 0.1).
             use_column_embedding (bool): Whether to use column embeddings (default is False).
-            mlp_hidden_factors (list): List of factors for hidden layer sizes (default is [2, 4]).
             encoder (object): Custom encoder for the model (default is None).
             explainable (bool): Whether the encoder is explainable (default is True).
             out_activation (callable): Output layer activation function (default is tf.math.sigmoid).
@@ -121,10 +121,12 @@ class NATT(AdditiveBaseModel):
         self.attn_dropout = attn_dropout
         self.ff_dropout = ff_dropout
         self.use_column_embedding = use_column_embedding
-        self.mlp_hidden_factors = mlp_hidden_factors
         self.encoder = encoder
         self.explainable = explainable
         self.model_built = False
+        self.transformer_mlp_sizes = transformer_mlp_sizes
+        self.transformer_mlp_dropout = transformer_mlp_dropout
+        self.transformer_mlp_activation = transformer_mlp_activation
 
     def build(self, input_shape):
         """
@@ -145,13 +147,33 @@ class NATT(AdditiveBaseModel):
 
     def print_network_architecture(self, num_classes):
         print("------------- Network architecture --------------")
-        print(
-            f"Transformer -> ({self.TRANSFORMER_FEATURES}, dims={self.embedding_dim}, depth={self.depth}, heads={self.heads}) -> MLP(input_dim={self.mlp_input_dim}) -> output dimension={num_classes}"
+
+        # Preparing Transformer line
+        transformer_line = (
+            f"Transformer -> ("
+            f"{self.TRANSFORMER_FEATURES}, "
+            f"dims={self.embedding_dim}, "
+            f"depth={self.depth}, "
+            f"heads={self.heads}"
+            f") -> MLP(input_dim={self.embedding_dim}) -> output dimension={num_classes}"
         )
+        print(transformer_line)
+
+        # Iterating through feature networks
         for idx, net in enumerate(self.feature_nets):
-            print(
-                f"{net.name} -> {self.shapefuncs[idx].Network}(features={[inp.name.split(':')[1] for inp in net.inputs]}, n_params={net.count_params()}) -> output dimension={self.shapefuncs[idx].output_dimension}"
+            # Pre-calculate complex expressions for readability
+            features = [inp.name.split(":")[1] for inp in net.inputs]
+            net_params = net.count_params()
+            output_dim = self.shapefuncs[idx].output_dimension
+
+            # Constructing and printing each feature network line
+            feature_net_line = (
+                f"{net.name} -> {self.shapefuncs[idx].Network}("
+                f"features={features}, "
+                f"n_params={net_params}"
+                f") -> output dimension={output_dim}"
             )
+            print(feature_net_line)
 
     def _initialize_transformer(self):
         self.TRANSFORMER_FEATURES = []
@@ -181,11 +203,20 @@ class NATT(AdditiveBaseModel):
         self.ln = tf.keras.layers.LayerNormalization()
 
     def _initialize_transformer_mlp(self, num_classes):
-        self.mlp_input_dim = self.embedding_dim * len(self.encoder.categorical)
+        self.mlp_input_dim = self.embedding_dim  # * len(self.encoder.categorical)
 
-        self.transformer_mlp = build_cls_mlp(
-            self.mlp_input_dim, self.mlp_hidden_factors, self.ff_dropout
-        )
+        mlp_layers = []
+        for units in self.transformer_mlp_sizes:
+            mlp_layers.append(tf.keras.layers.BatchNormalization()),
+            mlp_layers.append(
+                tf.keras.layers.Dense(
+                    units,
+                    activation=self.transformer_mlp_activation,
+                )
+            )
+            mlp_layers.append(tf.keras.layers.Dropout(self.transformer_mlp_dropout))
+
+        self.transformer_mlp = tf.keras.Sequential(mlp_layers)
 
         self.mlp_output_layer = tf.keras.layers.Dense(
             num_classes,
