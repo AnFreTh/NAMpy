@@ -93,6 +93,9 @@ class FormulaHandler_old:
                 try:
                     feature_dict[key] = ast.literal_eval(value)
                 except (ValueError, SyntaxError):
+                    print(
+                        "first",
+                    )
                     feature_dict[key] = value
 
             try:
@@ -103,12 +106,14 @@ class FormulaHandler_old:
                     try:
                         feature_dict[key] = ast.literal_eval(value)
                     except (ValueError, SyntaxError):
+                        print("second", value)
                         feature_dict[key] = value
 
                 else:
                     try:
                         feature_dict[key] = ast.literal_eval(value)
                     except (ValueError, SyntaxError):
+                        print("third", value)
                         feature_dict[key] = value
             except IndexError:
                 pass
@@ -177,6 +182,11 @@ class FormulaHandler:
                     value = [int(x.strip()) for x in value.strip("[]").split(",")]
                 elif value.isdigit():
                     value = int(value)  # Convert numeric strings to integers
+
+                try:
+                    value = ast.literal_eval(value)
+                except (ValueError, SyntaxError):
+                    pass
 
                 # Determine if option is preprocessing or shape function argument
                 if key in ["encoding", "n_bins"]:
