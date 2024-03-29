@@ -6,3 +6,4 @@ from nampy.models.TabTransformer import TabTransformer
 from nampy.models.TabTransformerLSS import TabTransformerLSS
 from nampy.models.FTTransformer import FTTransformer
 from nampy.models.FTTransformerLSS import FTTransformerLSS
+from nampy.models.NAMformer import NAMformer

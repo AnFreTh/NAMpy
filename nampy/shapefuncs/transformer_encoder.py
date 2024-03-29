@@ -366,3 +366,122 @@ class FTTransformerEncoder(tf.keras.Model):
             return transformer_inputs, importances
         else:
             return transformer_inputs
+
+
+class NAMformerEncoder(tf.keras.Model):
+    def __init__(
+        self,
+        categorical_features: list,
+        numerical_features: list,
+        num_categories: list,
+        embedding_dim: int = 32,
+        depth: int = 4,
+        heads: int = 8,
+        attn_dropout: float = 0.1,
+        ff_dropout: float = 0.1,
+        explainable: bool = True,
+        data: pd.DataFrame = None,
+    ):
+
+        super(NAMformerEncoder, self).__init__()
+
+        self.embedding_dim = embedding_dim
+
+        self.cat_features = categorical_features
+        self.num_features = numerical_features
+        self.features = categorical_features + numerical_features
+        self.num_categories = num_categories
+
+        self.explainable = explainable
+        self.depth = depth
+        self.heads = heads
+
+        # cls tokens
+        w_init = tf.random_normal_initializer()
+        self.cls_weights = tf.Variable(
+            initial_value=w_init(shape=(1, embedding_dim), dtype="float32"),
+            trainable=True,
+        )
+        # ---------- Categorical Input -----------
+
+        # Categorical input embedding
+        self.cat_embedding_layers = []
+
+        for number_of_classes in self.num_categories:
+            category_embedding = Embedding(
+                input_dim=number_of_classes, output_dim=embedding_dim
+            )
+            self.cat_embedding_layers.append(category_embedding)
+
+        # Embedding concatenation layer
+        self.embedded_concatenation = Concatenate(axis=1)
+
+        self.num_embedding_layers = [
+            tf.keras.layers.Dense(
+                self.embedding_dim,
+                activation="relu",
+            )
+            for _ in range(len(self.num_features))
+        ]
+
+        # adding transformers
+        self.transformers = []
+        for _ in range(depth):
+            self.transformers.append(
+                TransformerBlock(
+                    embedding_dim,
+                    heads,
+                    embedding_dim,
+                    att_dropout=attn_dropout,
+                    ff_dropout=ff_dropout,
+                    explainable=explainable,
+                )
+            )
+        self.flatten_transformer_output = Flatten()
+
+        # MLP
+        self.pre_mlp_concatenation = Concatenate()
+
+    def call(self, inputs):
+        feature_list = []
+
+        for i, c in enumerate(self.cat_features):
+            cat_embedded = self.cat_embedding_layers[i](inputs[c])
+            feature_list.append(cat_embedded)
+
+        for i, c in enumerate(self.num_features):
+            num_embedded = self.num_embedding_layers[i](inputs[c])
+            num_embedded = tf.expand_dims(num_embedded, axis=1)
+            feature_list.append(num_embedded)
+
+        # cls tokens as first tokens on transformer input
+        cls_tokens = tf.repeat(
+            self.cls_weights, repeats=tf.shape(inputs[self.features[0]])[0], axis=0
+        )
+
+        cls_tokens = tf.expand_dims(cls_tokens, axis=1)
+
+        transformer_inputs = [cls_tokens]
+
+        transformer_inputs += [self.embedded_concatenation(feature_list)]
+        transformer_inputs = tf.concat(transformer_inputs, axis=1)
+
+        importances = []
+
+        for transformer in self.transformers:
+            if self.explainable:
+                transformer_inputs, self.att_weights = transformer(transformer_inputs)
+                importances.append(tf.reduce_sum(self.att_weights[:, :, 0, :], axis=1))
+
+            else:
+                transformer_inputs = transformer(transformer_inputs)
+
+        if self.explainable:
+            # Sum across the layers
+            importances = tf.reduce_sum(tf.stack(importances), axis=0) / (
+                self.depth * self.heads
+            )
+
+            return transformer_inputs, importances, feature_list
+        else:
+            return transformer_inputs
