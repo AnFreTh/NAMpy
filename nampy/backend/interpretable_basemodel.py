@@ -150,7 +150,7 @@ class AdditiveBaseModel(tf.keras.Model):
             target_name=self.target_name,
             task=self.task,
         )
-        self.datamodule.preprocess(
+        self.datamodule.fit_transform(
             validation_split=val_split,
             test_split=test_split,
             batch_size=batch_size,
@@ -214,18 +214,11 @@ class AdditiveBaseModel(tf.keras.Model):
             NotImplementedError: If not implemented in the subclass.
         """
 
-        datamodule = DataModule(
-            data,
-            input_dict={},
-            feature_dictionary=self.feature_information,
+        dataset = self.datamodule.transform(
+            data.copy(),
             target_name=self.target_name,
-            task=self.task,
-        )
-        datamodule.preprocess(
-            validation_split=None,
-            test_split=None,
             batch_size=batch_size,
             shuffle=shuffle,
         )
 
-        return datamodule.training_dataset
+        return dataset

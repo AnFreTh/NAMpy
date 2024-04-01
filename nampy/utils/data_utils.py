@@ -141,7 +141,38 @@ class Preprocessor(tf.keras.layers.Layer):
                 else:
                     self.preprocessors[key] = NoPreprocessingLayer()
 
-    def call(self, data, target):
+    def fit(self, data, target):
+        """
+        Fit the preprocessing layers to the input data.
+
+        Args:
+        data (dict): A dictionary containing input features.
+        target: The target feature.
+
+        Raises:
+        ValueError: If the data types and preprocessing methods are not compatible.
+        """
+
+        for key, feature in data.items():
+            if key == self.target_name:
+                continue
+            try:
+                feature.shape[1]
+            except IndexError:
+                feature = np.expand_dims(feature, 1)
+
+            # adapt the preprocessing layers to the data
+            try:
+                self.preprocessors[key].adapt(feature)
+            except TypeError:
+                try:
+                    self.preprocessors[key].adapt(feature, target)
+                except:
+                    raise ValueError(
+                        "the datatypes and preprocessing are not functional together"
+                    )
+
+    def call(self, data):
         """
         Preprocess the input data according to the specified preprocessing methods.
 
@@ -166,17 +197,6 @@ class Preprocessor(tf.keras.layers.Layer):
                 feature.shape[1]
             except IndexError:
                 feature = np.expand_dims(feature, 1)
-
-            # adapt the preprocessing layers to the data
-            try:
-                self.preprocessors[key].adapt(feature)
-            except TypeError:
-                try:
-                    self.preprocessors[key].adapt(feature, target)
-                except:
-                    raise ValueError(
-                        "the datatypes and preprocessing are not functional together"
-                    )
 
             encoded_feature = self.preprocessors[key](feature)
             if encoded_feature.shape[0] == 1:
@@ -363,7 +383,7 @@ class DataModule:
 
         return self.plotting_dataset, plotting_data
 
-    def preprocess(
+    def fit_transform(
         self, validation_split=0.2, test_split=None, batch_size=1024, shuffle=True
     ):
         """
@@ -384,7 +404,8 @@ class DataModule:
         self.batch_size = batch_size
         self.shuffle = shuffle
 
-        self.dataset = self.encoder(self.data, self.labels)
+        self.encoder.fit(self.data, self.labels)
+        self.dataset = self.encoder(self.data)
         self.dataset = tf.data.Dataset.from_tensor_slices(
             (dict(self.dataset), self.labels)
         )
@@ -421,6 +442,21 @@ class DataModule:
             self.training_dataset = self.training_dataset.prefetch(batch_size)
             self.validation_dataset = None
             self.test_dataset = None
+
+    def transform(self, data, target_name, batch_size, shuffle):
+        assert self.preprocessing_called, "Preprocessing must be called first"
+        if target_name in data.columns:
+            labels = data.pop(target_name)
+        else:
+            labels = None
+        dataset = self.encoder(data)
+        dataset = tf.data.Dataset.from_tensor_slices((dict(dataset), labels))
+
+        if shuffle:
+            dataset = dataset.shuffle(buffer_size=len(data))
+
+        dataset = dataset.batch(batch_size).prefetch(batch_size)
+        return dataset
 
 
 def generate_plotting_data(df, num_samples):
