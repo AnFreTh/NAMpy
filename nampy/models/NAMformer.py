@@ -6,14 +6,16 @@ from nampy.shapefuncs.transformer_encoder import NAMformerEncoder
 from nampy.shapefuncs.helper_nets.helper_funcs import build_cls_mlp
 from nampy.visuals.plot_importances import (
     visualize_importances,
-    visualize_categorical_importances,
-    visualize_heatmap_importances,
 )
 from keras.layers import Add
 from nampy.visuals.analytics_plot import visual_analysis
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
 import warnings
+from nampy.visuals.plot_interactive import plot_NAMformer
+from nampy.visuals.plot_predictions import (
+    plot_multi_output,
+)
 
 # Filter out the specific warning by category
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -239,17 +241,23 @@ class NAMformer(BaseModel):
             dictionary
         """
         if training_dataset:
-            return self.predict(self.training_dataset)
+            predictions = self.predict(self.training_dataset)
         else:
-            return self.predict(self.plotting_dataset)
+            predictions = self.predict(self.plotting_dataset)
+
+        for key in ["output", "importances", "att_weights"]:
+            predictions.pop(key, None)
+
+        return predictions
 
     def plot_importances(self, title="importances"):
         visualize_importances(self, title)
-
-    def plot_features(self):
-        pass
 
     def plot_analysis(self):
         dataset = self._get_dataset(self.data)
         preds = self.predict(dataset)["output"].squeeze()
         visual_analysis(preds, self.data[self.target_name])
+
+    def plot(self, port=8050, smooth=True, k=3, s=0.5):
+
+        plot_NAMformer(self, port=port, smooth=smooth, k=k, s=s)

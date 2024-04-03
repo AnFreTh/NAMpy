@@ -9,7 +9,11 @@ from .preprocessing_utils._periodic_linear_encoding import (
 from .preprocessing_utils._cubic_expansion import CubicExpansion
 from .preprocessing_utils._polynomial_expansion import PolynomialExpansion
 from .preprocessing_utils._minmax import MinMaxEncodingLayer
-from .preprocessing_utils._helper import NoPreprocessingCatLayer, NoPreprocessingLayer
+from .preprocessing_utils._helper import (
+    NoPreprocessingCatLayer,
+    NoPreprocessingLayer,
+    OneHotConstantBins,
+)
 import numbers
 from tqdm import tqdm
 from tensorflow.keras.utils import to_categorical
@@ -130,6 +134,17 @@ class Preprocessor(tf.keras.layers.Layer):
                         self.preprocessors[key] = NoPreprocessingCatLayer(
                             type="one_hot"
                         )
+
+                elif preprocessing["encoding"] == "one_hot_occurences":
+                    self.preprocessors[key] = tf.keras.layers.Discretization(
+                        num_bins=preprocessing["n_bins"],
+                        output_mode="one_hot",
+                    )
+
+                elif preprocessing["encoding"] == "one_hot_constant":
+                    self.preprocessors[key] = OneHotConstantBins(
+                        num_bins=preprocessing["n_bins"],
+                    )
 
                 elif preprocessing["encoding"] == "PLE":
                     self.preprocessors[key] = PLE(
@@ -293,6 +308,8 @@ class DataModule:
             None,
             "int",
             "one_hot",
+            "one_hot_constant",
+            "one_hot_occurences",
             "PLE",
             "normalized",
             "min_max",

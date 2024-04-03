@@ -44,3 +44,27 @@ class NoPreprocessingLayer(tf.keras.layers.Layer):
 
     def adapt(self, feature):
         pass
+
+
+class OneHotConstantBins(tf.keras.layers.Layer):
+    def __init__(self, num_bins, **kwargs):
+        super(OneHotConstantBins, self).__init__(**kwargs)
+        self.num_bins = num_bins
+
+    def build(self, input_shape):
+        super(OneHotConstantBins, self).build(input_shape)
+
+    def call(self, feature):
+        layer = tf.keras.layers.Discretization(
+            bin_boundaries=self.bin_edges,
+            output_mode="one_hot",
+        )
+
+        return layer(feature)
+
+    def adapt(self, feature):
+        min = np.min(feature)
+
+        max = np.max(feature)
+
+        self.bin_edges = np.linspace(min, max, self.num_bins)

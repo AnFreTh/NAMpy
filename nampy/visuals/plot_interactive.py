@@ -2,10 +2,10 @@ import dash
 from dash import dcc
 from dash import html
 from dash.dependencies import Input, Output
-import plotly.express as px
 import numpy as np
 import plotly.graph_objects as go
 from nampy.backend.interpretable_basemodel import AdditiveBaseModel
+from scipy.interpolate import UnivariateSpline
 
 
 def visualize_regression_predictions(model, datapoints=True, port=8050):
@@ -18,10 +18,10 @@ def visualize_regression_predictions(model, datapoints=True, port=8050):
         feature_names (list of str): List of feature names in the dataset.
         port (int): Port number for the Dash app.
     """
-    # Assert that the model has the 'encoder' attribute
+
     assert isinstance(
         model, AdditiveBaseModel
-    ), "Model does not have an 'encoder' attribute"
+    ), "Model is not an AdditiveBaseModel instance"
 
     # Assert that the model has the '_get_training_preds' method implemented
     assert callable(
@@ -139,10 +139,9 @@ def visualize_additive_model(
     datapoints=True,
     port=8050,
 ):
-    # Assert that the model has the 'encoder' attribute
     assert isinstance(
         model, AdditiveBaseModel
-    ), "Model does not have an 'encoder' attribute"
+    ), "Model is not an AdditiveBaseModel instance"
 
     # Assert that the model has the '_get_training_preds' method implemented
     assert callable(
@@ -318,6 +317,133 @@ def visualize_additive_model(
                 zaxis=dict(title="Prediction"),
             )
         )
+        return fig
+
+    app.run_server(debug=True, port=port)
+
+
+def plot_NAMformer(model, datapoints=True, port=8050, smooth=True, k=5, s=0.3):
+    assert callable(
+        getattr(model, "_get_plotting_preds", None)
+    ), "Model does not implement '_get_plotting_preds' method"
+
+    predictions_dict = model._get_plotting_preds()
+
+    app = dash.Dash(__name__)
+
+    # Convert keys to a list to support indexing
+    keys = list(predictions_dict.keys())
+
+    app.layout = html.Div(
+        [
+            html.H1("Regression Model Prediction Visualization"),
+            html.Label("Select Feature:"),
+            dcc.Dropdown(
+                id="feature-dropdown",
+                options=[{"label": key, "value": key} for key in keys],
+                value=(
+                    keys[0] if keys else None
+                ),  # Set default value to the first key if available
+            ),
+            dcc.Graph(id="prediction-plot"),
+        ]
+    )
+
+    @app.callback(
+        Output("prediction-plot", "figure"), [Input("feature-dropdown", "value")]
+    )
+    def update_graph(selected_feature):
+        if selected_feature not in predictions_dict:
+            return go.Figure().update_layout(
+                title=f"Data not available for {selected_feature}"
+            )
+
+        predictions = predictions_dict.get(selected_feature, []).flatten()
+
+        fig = go.Figure()
+
+        if datapoints:
+            fig.add_trace(
+                go.Scatter(
+                    x=model.data[selected_feature],
+                    y=model.data[model.target_name]
+                    - np.mean(model.data[model.target_name]),
+                    mode="markers",
+                    name="Data Points",
+                    marker=dict(size=3, color="cornflowerblue"),
+                )
+            )
+
+        plot_mode = (
+            "markers"
+            if selected_feature in getattr(model, "CAT_FEATURES", [])
+            else "lines"
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=model.plotting_data[selected_feature],
+                y=predictions,
+                mode=plot_mode,
+                name="Predictions",
+                line=(
+                    dict(width=3, color="crimson")
+                    if plot_mode == "lines"
+                    else dict(color="crimson")
+                ),
+            )
+        )
+
+        if smooth and selected_feature not in getattr(model, "CAT_FEATURES", []):
+            combined = np.vstack((model.plotting_data[selected_feature], predictions)).T
+
+            # Sort the combined array by feature values
+            combined_sorted = combined[np.argsort(combined[:, 0])]
+
+            # Find unique feature values and average the predicted values for duplicates
+            unique_features, indices = np.unique(
+                combined_sorted[:, 0], return_index=True
+            )
+            averaged_predictions = np.array(
+                [
+                    np.mean(combined_sorted[indices == index, 1])
+                    for index in range(len(unique_features))
+                ]
+            )
+
+            # Use unique feature values and their averaged predicted values for spline interpolation
+            spline = UnivariateSpline(unique_features, averaged_predictions, s=s, k=k)
+
+            # Generate a smooth range of feature values
+            smooth_feature_range = np.linspace(
+                unique_features.min(), unique_features.max(), 1000
+            )
+
+            # Evaluate the spline over the smooth feature range to get smooth predicted values
+            smooth_predicted_values = spline(smooth_feature_range)
+
+            fig.add_trace(
+                go.Scatter(
+                    x=smooth_feature_range,
+                    y=smooth_predicted_values,
+                    mode=plot_mode,
+                    name="Smoothed Predictions",
+                    opacity=0.5,
+                    line=(
+                        dict(width=2, color="black")
+                        if plot_mode == "lines"
+                        else dict(color="black")
+                    ),
+                )
+            )
+
+        fig.update_layout(
+            title="Predictions with Data Points",
+            xaxis_title=selected_feature,
+            yaxis_title="Predicted Value",
+            hovermode="closest",
+        )
+
         return fig
 
     app.run_server(debug=True, port=port)
