@@ -154,20 +154,20 @@ To build and train a model in nampy, follow these steps:
 
    Before you start building a model, it's essential to load and prepare your data. In this example, we'll use the California Housing dataset as a sample. The data should be organized in a Pandas DataFrame, where each column represents a feature, and the target variable is added to the DataFrame.
 
-   .. code-block:: python
+.. code-block:: python
 
-      from sklearn.datasets import fetch_california_housing
-      import pandas as pd
-      from nampy.models.NAM import NAM
+   from sklearn.datasets import fetch_california_housing
+   import pandas as pd
+   from nampy.models.NAM import NAM
+   # Load a dataset (e.g., California Housing dataset)
+   housing = fetch_california_housing(as_frame=True)
+   # Create a Pandas DataFrame from the dataset
+   data = pd.DataFrame(housing.data, columns=housing.feature_names)
+   # Add the target variable to the DataFrame
+   data['target'] = housing.target
 
-      # Load a dataset (e.g., California Housing dataset)
-      housing = fetch_california_housing(as_frame=True)
-      # Create a Pandas DataFrame from the dataset
-      data = pd.DataFrame(housing.data, columns=housing.feature_names)
-      # Add the target variable to the DataFrame
-      data['target'] = housing.target
-
-2. **Initialize the Model:**
+   
+1. **Initialize the Model:**
 
    Once your data is loaded, you can initialize the model using the `NAM` class. The model formula follows a structure similar to MGCV. You can specify the target variable, predictor variables, and their interactions within the formula. Additionally, you can set various hyperparameters, such as feature dropout, to control the model's behavior.
 
@@ -181,7 +181,7 @@ To build and train a model in nampy, follow these steps:
 
    For a simple Neural Additive Model (NAM), we use Multilayer Perceptron (MLP) shape functions for each feature. The expression `MLP(Latitude):MLP(Longitude)` defines a pairwise feature interaction between Latitude and Longitude.
 
-3. **Train the Model:**
+2. **Train the Model:**
 
    After initializing the model, you can train it using the Keras API. This step involves specifying an optimizer, loss function, and training settings. The training dataset is used for fitting the model, and the validation dataset helps monitor its performance during training.
    Note, that nampy Models have dictionaries as outputs including not only the models overall predictions but often either the individual feature network predictions or attention weights/distributional parameter predictions. Thus the loss argument should be adapted.
@@ -201,7 +201,7 @@ To build and train a model in nampy, follow these steps:
         validation_data=nam.validation_dataset
         )
 
-4. **Evaluate the Model:**
+3. **Evaluate the Model:**
 
    Evaluating the model is a crucial step to assess its performance. You can use the Keras API to calculate various metrics, including the test loss. This information is essential for understanding how well the model generalizes to unseen data.
 
