@@ -156,6 +156,8 @@ To build and train a model in nampy, follow these steps:
 
    .. code-block:: python
 
+      from sklearn.datasets import fetch_california_housing
+      import pandas as pd
       from nampy.models.NAM import NAM
 
       # Load a dataset (e.g., California Housing dataset)
