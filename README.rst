@@ -150,17 +150,6 @@ Fit a Model
 
 To build and train a model in nampy, follow these steps:
 
-Simple Python Code Block Example
-=================================
-
-Below is a simple Python code block:
-
-.. code-block:: python
-
-    print("Hello, world!")
-
-
-
 1. **Load the Data:**
 
    Before you start building a model, it's essential to load and prepare your data. In this example, we'll use the California Housing dataset as a sample. The data should be organized in a Pandas DataFrame, where each column represents a feature, and the target variable is added to the DataFrame.
@@ -170,6 +159,7 @@ Below is a simple Python code block:
    from sklearn.datasets import fetch_california_housing
    import pandas as pd
    from nampy.models.NAM import NAM
+   
    # Load a dataset (e.g., California Housing dataset)
    housing = fetch_california_housing(as_frame=True)
    # Create a Pandas DataFrame from the dataset
