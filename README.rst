@@ -150,6 +150,17 @@ Fit a Model
 
 To build and train a model in nampy, follow these steps:
 
+Simple Python Code Block Example
+=================================
+
+Below is a simple Python code block:
+
+.. code-block:: python
+
+    print("Hello, world!")
+
+
+
 1. **Load the Data:**
 
    Before you start building a model, it's essential to load and prepare your data. In this example, we'll use the California Housing dataset as a sample. The data should be organized in a Pandas DataFrame, where each column represents a feature, and the target variable is added to the DataFrame.
@@ -166,7 +177,7 @@ To build and train a model in nampy, follow these steps:
    # Add the target variable to the DataFrame
    data['target'] = housing.target
 
-   
+
 1. **Initialize the Model:**
 
    Once your data is loaded, you can initialize the model using the `NAM` class. The model formula follows a structure similar to MGCV. You can specify the target variable, predictor variables, and their interactions within the formula. Additionally, you can set various hyperparameters, such as feature dropout, to control the model's behavior.
