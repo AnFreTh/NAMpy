@@ -7,7 +7,7 @@ from _data_helper import data_gen
 import unittest
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from xDL.formulas.formulas import FormulaHandler
+from nampy.formulas.formulas import FormulaHandler
 
 
 class TestFormulaHandler(unittest.TestCase):

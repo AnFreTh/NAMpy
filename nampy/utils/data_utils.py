@@ -212,7 +212,7 @@ class Preprocessor(tf.keras.layers.Layer):
                 feature.shape[1]
             except IndexError:
                 feature = np.expand_dims(feature, 1)
-
+            print(key, self.preprocessors)
             encoded_feature = self.preprocessors[key](feature)
             if encoded_feature.shape[0] == 1:
                 encoded_feature = tf.transpose(encoded_feature)

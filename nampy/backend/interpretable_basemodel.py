@@ -104,14 +104,14 @@ class AdditiveBaseModel(tf.keras.Model):
         self.task = task
 
     def _create_input_dictionary(self):
-        FH = FormulaHandler()
+        self.FH = FormulaHandler()
         (
             self.feature_names,
             self.target_name,
             self.fit_intercept,
             network_identifier,
             self.feature_information,
-        ) = FH.extract_formula_data(self.formula, self.data)
+        ) = self.FH.extract_formula_data(self.formula, self.data)
 
         network_identifier.append(self.target_name)
         helper_idx = self.feature_names + [self.target_name]
@@ -213,6 +213,20 @@ class AdditiveBaseModel(tf.keras.Model):
         Raises:
             NotImplementedError: If not implemented in the subclass.
         """
+
+        (
+            feature_names,
+            target_name,
+            fit_intercept,
+            network_identifier,
+            feature_information,
+        ) = self.FH.extract_formula_data(self.formula, data)
+
+        network_identifier.append(self.target_name)
+        helper_idx = self.feature_names + [self.target_name]
+        data = data[helper_idx]
+        data.columns = network_identifier
+        y = data[self.target_name]
 
         dataset = self.datamodule.transform(
             data.copy(),

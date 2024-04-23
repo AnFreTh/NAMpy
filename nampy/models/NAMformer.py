@@ -203,7 +203,7 @@ class NAMformer(BaseModel):
             x, expl, uncontextualized_embeddings = self.encoder(inputs)
             x = self.ln(x[:, 0, :])
             x = self.transformer_mlp(x)
-            output = self.output_layer(x)
+            output = self.output_layer(x)  # FT-Transformer output
             feature_preds = [
                 shapefunc(uncontextualized_embeddings[i])
                 for i, shapefunc in enumerate(self.shapefuncs)
