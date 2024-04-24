@@ -45,6 +45,7 @@ class NAMformer(BaseModel):
         batch_size=1024,
         num_encoding="PLE",
         n_bins=20,
+        feature_dropout=0.001,
     ):
         """
         Initialize the TabTransformer model as described in https://arxiv.org/pdf/2012.06678.pdf.
@@ -121,6 +122,7 @@ class NAMformer(BaseModel):
         self.num_encoding = num_encoding
         self.model_built = False
         self.n_bins = n_bins
+        self.feature_dropout = feature_dropout
 
     def build(self, input_shape):
         """
@@ -181,6 +183,8 @@ class NAMformer(BaseModel):
             self.output_activation,
         )
 
+        self.FeatureDropoutLayer = tf.keras.layers.Dropout(self.feature_dropout)
+
     def _initialize_shapefuncs(self, num_classes):
         self.shapefuncs = []
         all_features = self.CAT_FEATURES + self.NUM_FEATURES
@@ -198,7 +202,7 @@ class NAMformer(BaseModel):
 
             self.shapefuncs.append(model)
 
-    def call(self, inputs):
+    def call(self, inputs, training=True):
         if self.encoder.explainable:
             x, expl, uncontextualized_embeddings = self.encoder(inputs)
             x = self.ln(x[:, 0, :])
@@ -209,8 +213,17 @@ class NAMformer(BaseModel):
                 for i, shapefunc in enumerate(self.shapefuncs)
             ]
 
+            # Apply dropout if in training mode
+            if training:
+                feature_preds_dropout = [
+                    self.FeatureDropoutLayer(output) for output in feature_preds
+                ]
+                summed_outputs = Add()(feature_preds_dropout)
+            else:
+                summed_outputs = Add()(feature_preds)
+
             att_testing_weights = self.encoder.att_weights
-            sum_output = Add()(feature_preds) + output
+            sum_output = summed_outputs + output
 
             feature_preds_dict = {
                 f"{self.shapefuncs[i].name}": pred
