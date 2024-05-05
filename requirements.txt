@@ -7,7 +7,7 @@ plotly
 scikit-learn
 scipy
 seaborn
-tensorflow
-tensorflow_probability
+tensorflow<=2.15.1
+tensorflow_probability<=0.23
 tqdm
 setuptools
