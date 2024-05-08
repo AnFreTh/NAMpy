@@ -45,7 +45,7 @@ class NAMformer(BaseModel):
         batch_size=1024,
         num_encoding="PLE",
         n_bins=20,
-        feature_dropout=0.001,
+        feature_dropout=0.1,
     ):
         """
         Initialize the TabTransformer model as described in https://arxiv.org/pdf/2012.06678.pdf.
@@ -101,6 +101,8 @@ class NAMformer(BaseModel):
             num_encoding=num_encoding,
             n_bins=n_bins,
             task=task,
+            val_split=val_split,
+            val_data=val_data,
         )
 
         self.val_data = val_data

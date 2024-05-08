@@ -69,7 +69,14 @@ class AdditiveBaseModel(tf.keras.Model):
         self._validate_task(binning_task, False)
 
         self._initialize_attributes(
-            formula, data, feature_dropout, val_data, binning_task, n_bins_num, task
+            formula,
+            data,
+            feature_dropout,
+            val_data,
+            binning_task,
+            n_bins_num,
+            batch_size,
+            task,
         )
 
         self._create_input_dictionary()
@@ -93,7 +100,15 @@ class AdditiveBaseModel(tf.keras.Model):
                 return 1
 
     def _initialize_attributes(
-        self, formula, data, feature_dropout, val_data, binning_task, n_bins, task
+        self,
+        formula,
+        data,
+        feature_dropout,
+        val_data,
+        binning_task,
+        n_bins,
+        batch_size,
+        task,
     ):
         self.formula = formula
         self.val_data = val_data
@@ -102,6 +117,7 @@ class AdditiveBaseModel(tf.keras.Model):
         self.binning_task = binning_task
         self.n_bins = n_bins
         self.task = task
+        self.batch_size = batch_size
 
     def _create_input_dictionary(self):
         self.FH = FormulaHandler()
@@ -162,10 +178,30 @@ class AdditiveBaseModel(tf.keras.Model):
         """
         Assigns datasets to the respective class attributes.
         """
+        val_data = self.val_data.copy()
+        (
+            feature_names,
+            target_name,
+            fit_intercept,
+            network_identifier,
+            feature_information,
+        ) = self.FH.extract_formula_data(self.formula, val_data)
+
+        network_identifier.append(self.target_name)
+        helper_idx = self.feature_names + [self.target_name]
+        val_data = val_data[helper_idx]
+        val_data.columns = network_identifier
+        y = val_data[self.target_name]
+
         self.validation_dataset = (
             self.datamodule.validation_dataset
             if self.val_data is None
-            else self.val_data
+            else self.datamodule.transform(
+                val_data.copy(),
+                target_name=self.target_name,
+                batch_size=self.batch_size,
+                shuffle=False,
+            )
         )
         self.training_dataset = self.datamodule.training_dataset
         self.test_dataset = self.datamodule.test_dataset

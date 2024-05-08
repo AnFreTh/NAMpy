@@ -35,6 +35,7 @@ class BaseModel(tf.keras.Model):
             dropout,
             y,
             num_encoding,
+            batch_size,
             task,
         )
 
@@ -68,6 +69,7 @@ class BaseModel(tf.keras.Model):
         dropout,
         y,
         num_encoding,
+        batch_size,
         task,
     ):
         self.val_data = val_data
@@ -79,6 +81,7 @@ class BaseModel(tf.keras.Model):
         self.binning_task = binning_task
         self.num_encoding = num_encoding
         self.task = task
+        self.batch_size = batch_size
 
     def _extract_data_types(self):
         self.NUM_FEATURES = []
@@ -134,7 +137,12 @@ class BaseModel(tf.keras.Model):
         self.validation_dataset = (
             self.datamodule.validation_dataset
             if self.val_data is None
-            else self.val_data
+            else self.datamodule.transform(
+                self.val_data.copy(),
+                target_name=self.target_name,
+                batch_size=self.batch_size,
+                shuffle=False,
+            )
         )
         self.training_dataset = self.datamodule.training_dataset
         self.test_dataset = self.datamodule.test_dataset

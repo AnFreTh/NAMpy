@@ -144,20 +144,29 @@ class PLE(tf.keras.layers.Layer):
 
         locations = list(set(locations))
 
-        locations = locations = np.sort(locations)
+        locations = np.sort(locations)
 
         ple_encoded_feature = np.zeros(
             (len(feature), tf.reduce_max(encoded_feature).numpy() + 1)
         )
 
         for idx in range(len(encoded_feature)):
-            ple_encoded_feature[idx][encoded_feature[idx]] = (
-                feature[idx] - locations[(encoded_feature[idx].numpy() - 2)[0]]
-            ) / (
-                locations[(encoded_feature[idx].numpy() - 1)[0]]
-                - locations[(encoded_feature[idx].numpy() - 2)[0]]
-            )
-            ple_encoded_feature[idx, : encoded_feature[idx].numpy()[0]] = 1
+            # if encoded_feature[idx].numpy() < 1:
+            #    ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
+            # elif encoded_feature[idx].numpy() >= len(locations):
+            #    ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
+            if feature[idx] >= locations[-1]:
+                ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
+            elif feature[idx] <= locations[0]:
+                ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
+            else:
+                ple_encoded_feature[idx][encoded_feature[idx]] = (
+                    feature[idx] - locations[(encoded_feature[idx].numpy() - 1)[0]]
+                ) / (
+                    locations[(encoded_feature[idx].numpy())[0]]
+                    - locations[(encoded_feature[idx].numpy() - 1)[0]]
+                )
+                ple_encoded_feature[idx, : encoded_feature[idx].numpy()[0]] = 1
 
         if ple_encoded_feature.shape[1] == 1:
             return tf.zeros([len(feature), self.n_bins])

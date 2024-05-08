@@ -91,9 +91,9 @@ class NAM(AdditiveBaseModel):
             feature_dropout=feature_dropout,
             val_data=val_data,
             val_split=val_split,
-            batch_size=batch_size,
             binning_task=binning_task,
             task=task,
+            batch_size=batch_size
         )
 
         self.classification = classification
