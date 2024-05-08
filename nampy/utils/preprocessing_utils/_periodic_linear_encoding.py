@@ -132,7 +132,9 @@ class PLE(tf.keras.layers.Layer):
             tf.convert_to_tensor(encoded_feature) - 1, dtype=tf.int64
         )
 
-        pattern = r"-?\d+\.\d+"  # This pattern matches integers and floats
+        pattern = (
+            r"-?\d+\.?\d*[eE]?[+-]?\d*"  # This pattern matches integers and floats
+        )
         # Initialize an empty list to store the extracted numbers
         locations = []
         # Iterate through the strings and extract numbers
@@ -149,23 +151,30 @@ class PLE(tf.keras.layers.Layer):
         ple_encoded_feature = np.zeros(
             (len(feature), tf.reduce_max(encoded_feature).numpy() + 1)
         )
+        if locations[-1] > np.max(feature):
+            locations[-1] = np.max(feature)
 
         for idx in range(len(encoded_feature)):
             # if encoded_feature[idx].numpy() < 1:
             #    ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
             # elif encoded_feature[idx].numpy() >= len(locations):
             #    ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
+
             if feature[idx] >= locations[-1]:
                 ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
+                ple_encoded_feature[idx, : encoded_feature[idx].numpy()[0]] = 1
             elif feature[idx] <= locations[0]:
                 ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
+
             else:
+
                 ple_encoded_feature[idx][encoded_feature[idx]] = (
                     feature[idx] - locations[(encoded_feature[idx].numpy() - 1)[0]]
                 ) / (
                     locations[(encoded_feature[idx].numpy())[0]]
                     - locations[(encoded_feature[idx].numpy() - 1)[0]]
                 )
+
                 ple_encoded_feature[idx, : encoded_feature[idx].numpy()[0]] = 1
 
         if ple_encoded_feature.shape[1] == 1:
