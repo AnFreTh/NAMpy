@@ -104,6 +104,9 @@ class PLE(tf.keras.layers.Layer):
         self.tree_params = tree_params
         self.n_bins = n_bins
         self.conditions = conditions
+        self.pattern = (
+            r"-?\d+\.?\d*[eE]?[+-]?\d*"  # This pattern matches integers and floats
+        )
 
     def adapt(self, feature, target):
         if self.task == "regression":
@@ -132,33 +135,22 @@ class PLE(tf.keras.layers.Layer):
             tf.convert_to_tensor(encoded_feature) - 1, dtype=tf.int64
         )
 
-        pattern = (
-            r"-?\d+\.?\d*[eE]?[+-]?\d*"  # This pattern matches integers and floats
-        )
         # Initialize an empty list to store the extracted numbers
         locations = []
         # Iterate through the strings and extract numbers
         for string in self.conditions:
-            matches = re.findall(pattern, string)
+            matches = re.findall(self.pattern, string)
             locations.extend(matches)
 
         locations = [float(number) for number in locations]
-
         locations = list(set(locations))
-
         locations = np.sort(locations)
 
-        ple_encoded_feature = np.zeros(
-            (len(feature), tf.reduce_max(encoded_feature).numpy() + 1)
-        )
+        ple_encoded_feature = np.zeros((len(feature), locations.shape[0] + 1))
         if locations[-1] > np.max(feature):
             locations[-1] = np.max(feature)
 
         for idx in range(len(encoded_feature)):
-            # if encoded_feature[idx].numpy() < 1:
-            #    ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
-            # elif encoded_feature[idx].numpy() >= len(locations):
-            #    ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
 
             if feature[idx] >= locations[-1]:
                 ple_encoded_feature[idx][encoded_feature[idx]] = feature[idx]
