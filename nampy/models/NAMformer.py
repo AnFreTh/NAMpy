@@ -212,6 +212,7 @@ class NAMformer(BaseModel):
         if self.encoder.explainable:
             x, expl, uncontextualized_embeddings = self.encoder(inputs)
             raw_embeddings = tf.identity(uncontextualized_embeddings)
+            contextualized_embeddings = tf.identity(x)
             x = self.ln(x[:, 0, :])
             x = self.transformer_mlp(x)
             output = self.output_layer(x)  # FT-Transformer output
@@ -242,6 +243,7 @@ class NAMformer(BaseModel):
                 "importances": expl,
                 "att_weights": att_testing_weights,
                 "raw_embeddings": raw_embeddings,
+                "context_embeddings": contextualized_embeddings,
                 **feature_preds_dict,
             }
 
