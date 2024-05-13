@@ -178,7 +178,8 @@ class FTTransformer(BaseModel):
 
     def call(self, inputs):
         if self.encoder.explainable:
-            x, expl = self.encoder(inputs)
+            x, expl, uncontextualized_embeddings = self.encoder(inputs)
+            raw_embeddings = tf.identity(uncontextualized_embeddings)
             x = self.ln(x[:, 0, :])
             x = self.transformer_mlp(x)
             output = self.output_layer(x)
@@ -188,6 +189,7 @@ class FTTransformer(BaseModel):
                 "output": output,
                 "importances": expl,
                 "att_weights": att_testing_weights,
+                "raw_embeddings": raw_embeddings,
             }
 
         else:

@@ -363,7 +363,7 @@ class FTTransformerEncoder(tf.keras.Model):
                 self.depth * self.heads
             )
 
-            return transformer_inputs, importances
+            return transformer_inputs, importances, feature_list
         else:
             return transformer_inputs
 

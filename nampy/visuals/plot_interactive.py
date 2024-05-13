@@ -328,6 +328,7 @@ def plot_NAMformer(model, datapoints=True, port=8050, smooth=True, k=5, s=0.3):
     ), "Model does not implement '_get_plotting_preds' method"
 
     predictions_dict = model._get_plotting_preds()
+    predictions_dict.pop("raw_embeddings", None)
 
     app = dash.Dash(__name__)
 

@@ -204,9 +204,14 @@ class NAMformer(BaseModel):
 
             self.shapefuncs.append(model)
 
+    def get_raw_embeddings(self, inputs):
+        x, expl, uncontextualized_embeddings = self.encoder(inputs)
+        return uncontextualized_embeddings
+
     def call(self, inputs, training=True):
         if self.encoder.explainable:
             x, expl, uncontextualized_embeddings = self.encoder(inputs)
+            raw_embeddings = tf.identity(uncontextualized_embeddings)
             x = self.ln(x[:, 0, :])
             x = self.transformer_mlp(x)
             output = self.output_layer(x)  # FT-Transformer output
@@ -236,6 +241,7 @@ class NAMformer(BaseModel):
                 "output": sum_output,
                 "importances": expl,
                 "att_weights": att_testing_weights,
+                "raw_embeddings": raw_embeddings,
                 **feature_preds_dict,
             }
 
