@@ -82,6 +82,8 @@ class AdditiveBaseModel(tf.keras.Model):
         self._create_input_dictionary()
         self.n_classes = self._validate_task(task, True)
         self._extract_data_types()
+        if self.val_data is not None:
+            val_split = 0.0
         self._build_datasets(batch_size, val_split, test_split, shuffle)
         self._create_model_inputs()
 
@@ -178,20 +180,25 @@ class AdditiveBaseModel(tf.keras.Model):
         """
         Assigns datasets to the respective class attributes.
         """
-        val_data = self.val_data.copy()
-        (
-            feature_names,
-            target_name,
-            fit_intercept,
-            network_identifier,
-            feature_information,
-        ) = self.FH.extract_formula_data(self.formula, val_data)
 
-        network_identifier.append(self.target_name)
-        helper_idx = self.feature_names + [self.target_name]
-        val_data = val_data[helper_idx]
-        val_data.columns = network_identifier
-        y = val_data[self.target_name]
+        if self.val_data is not None:
+            val_data = self.val_data.copy()
+            (
+                feature_names,
+                target_name,
+                fit_intercept,
+                network_identifier,
+                feature_information,
+            ) = self.FH.extract_formula_data(self.formula, val_data)
+
+            network_identifier.append(self.target_name)
+            helper_idx = self.feature_names + [self.target_name]
+            val_data = val_data[helper_idx]
+            val_data.columns = network_identifier
+            y = val_data[self.target_name]
+
+        else:
+            val_data = None
 
         self.validation_dataset = (
             self.datamodule.validation_dataset
